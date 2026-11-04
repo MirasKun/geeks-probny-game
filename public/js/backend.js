@@ -7,7 +7,6 @@ FG.createBackend = function (G) {
   const $ = (s) => document.querySelector(s);
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const tasks = FG.bTasks;
-  const bonuses = FG.bBonuses;
 
   const SITE_CSS = `
     .cards { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)) !important; grid-auto-rows: 1fr !important; }
@@ -31,7 +30,7 @@ FG.createBackend = function (G) {
   let undoStack = [];
   let lastTask;
   let lastPhase;
-  let mode = 'idle'; // idle | task | near | done | bonus | crash
+  let mode = 'idle'; // idle | task | near | done | crash
   let lastNear = '';
   let hintCursor = 0;
   let nudgeTimer = null;
@@ -72,8 +71,6 @@ FG.createBackend = function (G) {
       crashCodeNow: '',
       lost: 0,
       final: false,
-      bonusIdx: 0,
-      bonusDone: 0,
       log: [['info', '* Сервер запущен: http://burgerbro.kg'], ['ok', 'GET /products → 200 OK']],
     };
     return G.S.b;
@@ -120,7 +117,7 @@ FG.createBackend = function (G) {
 
   function openLine() {
     showTab('code');
-    if (codeError) codeEd.reveal('py', codeError.line, codeError.line, true);
+    if (codeError) codeEd.reveal('py', codeError.line, codeError.line, false);
   }
 
   // ---------- Вкладки панели ----------
@@ -138,9 +135,7 @@ FG.createBackend = function (G) {
   // ---------- Что нажать дальше ----------
   function currentItem() {
     const b = state();
-    if (b.final || b.task < 0) return null;
-    if (!b.done[b.task]) return tasks[b.task];
-    return mode === 'bonus' ? bonuses[b.bonusIdx] : null;
+    return b.final || b.task < 0 || b.done[b.task] ? null : tasks[b.task];
   }
 
   function panelContext() {
@@ -158,10 +153,8 @@ FG.createBackend = function (G) {
     if (!active || !state()) return;
     if (crash) return;
     const b = state();
-    const item = currentItem();
     const step = stepNow();
-    const glow = step ? step.glow : item && item.glow ? item.glow(b) : [];
-    for (const sel of glow) document.querySelector(sel)?.classList.add('b-glow');
+    for (const sel of step ? step.glow : []) document.querySelector(sel)?.classList.add('b-glow');
     if (badId !== null) document.querySelector(`[data-pid="${badId}"]`)?.classList.add('b-bad');
     if (step && mode === 'task' && b.hints[b.task] && step.text !== shownStep) sayStep(step);
   }
@@ -326,16 +319,6 @@ FG.createBackend = function (G) {
     changed();
   });
 
-  // «Вставить слово» из подсказки — для тех, кто пока не умеет менять раскладку.
-  $('#assistantText').addEventListener('click', (e) => {
-    const b = e.target.closest('[data-fill]');
-    if (!b || !active) return;
-    if (!form) openForm(null);
-    $('#bName').value = b.dataset.fill;
-    $('#bPrice').focus();
-    paintPanel();
-  });
-
   // ---------- Сайт ----------
   function paintSite(doc) {
     if (!active || !doc || !state()) return;
@@ -476,14 +459,9 @@ FG.createBackend = function (G) {
     letter.type = 'button';
     letter.className = 'chip';
     letter.textContent = 's';
-    letter.title = 'Вставить букву s в конец жёлтой строчки';
+    letter.title = 'Вставить букву s туда, где стоит курсор';
     letter.addEventListener('mousedown', (e) => e.preventDefault());
-    letter.addEventListener('click', () => {
-      if (!crash) return;
-      const line = FG.serverFixLine(state().crashFixedCode);
-      if (codeEd.caretLine('py') !== line) codeEd.reveal('py', line, line, true);
-      codeEd.insert('s');
-    });
+    letter.addEventListener('click', () => crash && codeEd.insert('s'));
     $('#bCodeChips').appendChild(letter);
     $('#bCodeUndo').addEventListener('click', () => crash && codeEd.undo());
     $('#bCodeReset').addEventListener('click', async () => {
@@ -519,7 +497,11 @@ FG.createBackend = function (G) {
     const line = FG.serverFixLine(b.crashFixedCode);
     const lines = codeEd.value('py').split('\n');
     const marks = [{ from: line - 1, to: line, kind: 'soft' }];
-    if (b.crashHints) marks.push({ from: line, to: line, kind: 'hint' });
+    if (b.crashHints) {
+      marks.push({ from: line, to: line, kind: 'hint' });
+      const col = lines[line].indexOf('product');
+      if (lines[line] === FG.serverBugLine) marks.push({ from: line, to: line, kind: 'word', col, len: 'product'.length });
+    }
     if (codeError && (codeError.line !== line || lines[line] !== FG.serverBugLine)) marks.push({ from: codeError.line, to: codeError.line, kind: 'bad' });
     codeEd.setMarks('py', marks);
     codeEd.scrollToLine('py', line);
@@ -565,7 +547,10 @@ FG.createBackend = function (G) {
     G.botSay('🚨 Сервер упал! Открой вкладку <b>🐍 server.py</b>: строчка с ошибкой там подсвечена жёлтым. Не понятно, что делать? Жми <b>💡 Подсказка</b>.');
     updateHint();
     G.save();
-    if (!seen) say();
+    if (!seen) {
+      FG.voice.siren();
+      say();
+    }
     armNudge();
   }
 
@@ -576,6 +561,7 @@ FG.createBackend = function (G) {
   function stopCrash() {
     crash = false;
     codeError = null;
+    FG.voice.stopSiren();
     setCrashScreen(false);
     paintCode();
     codeEd.lock(true);
@@ -638,11 +624,7 @@ FG.createBackend = function (G) {
       btn.textContent = b.crashHints >= 3 ? '💡 Подсказки' : `💡 Подсказка ${b.crashHints + 1}/3`;
       return;
     }
-    if (b.done[b.task]) {
-      btn.hidden = !(mode === 'bonus' && bonuses[b.bonusIdx]);
-      btn.textContent = '💡 Подсказка';
-      return;
-    }
+    if (b.done[b.task]) return (btn.hidden = true);
     btn.hidden = false;
     btn.textContent = '💡 Что делать?';
   }
@@ -651,7 +633,7 @@ FG.createBackend = function (G) {
     if (crash) {
       const line = FG.serverFixLine(state().crashFixedCode);
       showTab('code');
-      codeEd.reveal('py', line, line, true);
+      codeEd.reveal('py', line, line, false);
       G.botSay(`<span class="hint-step">${level + 1}/3</span>${FG.bCrash.hints[level]}`);
       paintCode();
       return;
@@ -666,12 +648,7 @@ FG.createBackend = function (G) {
   function hint() {
     clearNudge();
     const b = state();
-    if (!crash && b.task >= 0 && b.done[b.task]) {
-      const bonus = bonuses[b.bonusIdx];
-      if (bonus) G.botSay(`<span class="bonus-tag">доп. правка</span>${bonus.hint}`);
-      paintPanel();
-      return;
-    }
+    if (!crash && b.task >= 0 && b.done[b.task]) return;
     const used = crash ? b.crashHints : b.hints[b.task] || 0;
     if (used < 3) {
       if (crash) b.crashHints = used + 1;
@@ -707,16 +684,6 @@ FG.createBackend = function (G) {
         if (!b.hints[b.task]) G.botSay('Теперь всё в порядке. Что нажать дальше, подсвечено жёлтым.');
       }
       return;
-    }
-    const bonus = bonuses[b.bonusIdx];
-    if (bonus && mode === 'bonus' && bonus.check(b)) {
-      b.bonusIdx++;
-      b.bonusDone++;
-      G.addStars(1);
-      G.save();
-      G.report();
-      G.toast('⭐ Доп. правка сделана! +1');
-      offerBonus();
     }
   }
 
@@ -763,27 +730,9 @@ FG.createBackend = function (G) {
     const b = state();
     const t = tasks[b.task];
     const actions = nextActions();
-    if (bonuses[b.bonusIdx]) actions.push({ label: '⭐ Взять доп. правку', onClick: offerBonus });
-    const wait = G.isSolo() ? '' : '<br><br>⏳ Ждём остальных. Хочешь ещё звёзд? Возьми доп. правку!';
+    const wait = G.isSolo() ? '' : '<br><br>⏳ Ждём остальных.';
     mode = 'done';
     G.botSay(`🎉 ${t.learn}${wait}`, 'good', actions);
-  }
-
-  function offerBonus() {
-    const b = state();
-    const bonus = bonuses[b.bonusIdx];
-    const actions = nextActions();
-    if (!bonus) {
-      mode = 'done';
-      G.botSay('Все доп. правки сделаны! 🔥 Можешь добавлять любые товары и смотреть, как меняется сайт.', 'good', actions);
-      updateHint();
-      return;
-    }
-    mode = 'bonus';
-    G.botSay(`<span class="bonus-tag">доп. правка</span>${bonus.say}`, '', actions);
-    updateHint();
-    check();
-    paintPanel();
   }
 
   // ---------- Переход между заказами ----------
@@ -890,7 +839,6 @@ FG.createBackend = function (G) {
   function enter() {
     if (active) return;
     active = true;
-    G.fixTypo();
     ensure();
     setupCode();
     renderShelf();
@@ -914,7 +862,7 @@ FG.createBackend = function (G) {
     setTask(state().task, { quiet: true });
     if (state().final) {
       setLock(false);
-      G.botSay('Этап пройден! Можешь добавлять товары и смотреть, как меняется сайт.', 'good', [{ label: '🎓 Сертификат', primary: true, onClick: G.openCert }]);
+      G.botSay('Этап пройден! Можешь посмотреть, что получилось.', 'good', [{ label: '🎓 Сертификат', primary: true, onClick: G.openCert }]);
     }
   }
 

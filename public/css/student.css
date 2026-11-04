@@ -485,10 +485,11 @@ mark { background: var(--yellow); color: #1b1c20; padding: 0 8px; border-radius:
 @keyframes flash { 50% { background: rgba(255, 231, 67, 0.3); } }
 
 /* Что менять в коде: мягко — нужный блок, ярко — точная строка, красным — ошибка. */
-.marks { position: absolute; inset: 0 0 auto; z-index: 1; pointer-events: none; }
+.marks { position: absolute; inset: 0 0 auto; z-index: 1; pointer-events: none; font: 14px/22px var(--mono); }
 .code-mark { position: absolute; left: 0; right: 0; }
 .code-mark.soft { background: rgba(255, 231, 67, 0.07); border-left: 3px solid rgba(255, 231, 67, 0.45); }
 .code-mark.hint { background: rgba(255, 231, 67, 0.2); border-left: 4px solid var(--yellow); }
+.code-mark.word { right: auto; transform: translateX(var(--sx, 0)); background: rgba(255, 231, 67, 0.28); outline: 2px solid var(--yellow); border-radius: 4px; }
 .code-mark.bad { background: rgba(255, 97, 89, 0.24); border-left: 4px solid var(--red); }
 .tab.has-bad { position: relative; }
 .tab.has-bad::after { content: ''; position: absolute; top: 6px; right: 6px; width: 8px; height: 8px; border-radius: 50%; background: var(--red); }
@@ -556,7 +557,7 @@ mark { background: var(--yellow); color: #1b1c20; padding: 0 8px; border-radius:
 .assistant-actions { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
 .assistant-actions:empty { display: none; }
 .assistant-actions .btn { padding: 8px 14px; font-size: 13px; }
-.bonus-tag { display: inline-block; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; background: var(--orange); color: #2a1600; padding: 2px 7px; border-radius: 5px; margin-right: 6px; vertical-align: 1px; }
+
 
 /* Замок, пока нет заказа */
 .editor-lock {
@@ -760,7 +761,7 @@ mark { background: var(--yellow); color: #1b1c20; padding: 0 8px; border-radius:
 .b-tile:active { cursor: grabbing; }
 .b-tile span { height: 28px; display: grid; place-items: center; font-size: 28px; line-height: 1; }
 .b-tile small { font-size: 8.5px; color: var(--muted); white-space: nowrap; }
-.b-fill { border: 1px dashed var(--yellow); background: transparent; color: var(--yellow); border-radius: 7px; padding: 1px 7px; font-size: 12px; font-weight: 700; }
+
 .b-packet { position: fixed; z-index: 40; font-size: 30px; transform: translate(-50%, -50%); transition: left 0.85s ease-in-out, top 0.85s ease-in-out, transform 0.85s; pointer-events: none; }
 .app.stage2 .assistant-text { max-height: 130px; }
 /* Что нажать на панели: светится жёлтым, ошибка — красным. */

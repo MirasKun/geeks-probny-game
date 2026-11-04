@@ -3,7 +3,6 @@
 (() => {
   const $ = (s) => document.querySelector(s);
   const tasks = FG.tasks;
-  const bonuses = FG.bonuses;
   const color = FG.colorUtil;
   const STORE = 'geeks-frontend-game';
 
@@ -20,8 +19,6 @@
     hints: [],
     stars: 0,
     base: null, // код на момент начала заказа: с ним сравниваем, что ученик изменил
-    bonusIdx: 0,
-    bonusDone: 0,
     final: false,
     stage: 1,
     b: null, // прогресс этапа 2 (см. backend.js)
@@ -164,7 +161,7 @@
     b.title = `Вставить цвет ${name}`;
     b.innerHTML = `<i></i>${name}`;
     b.addEventListener('mousedown', (e) => e.preventDefault());
-    b.addEventListener('click', () => insertWord(name, true));
+    b.addEventListener('click', () => editor.insert(name, true));
     palette.appendChild(b);
   }
   function renderChips(tab) {
@@ -178,7 +175,7 @@
       b.textContent = word;
       b.title = 'Вставить в код';
       b.addEventListener('mousedown', (e) => e.preventDefault());
-      b.addEventListener('click', () => insertWord(word, tab === 'css' && word !== 'px'));
+      b.addEventListener('click', () => editor.insert(word, tab === 'css' && word !== 'px'));
       box.appendChild(b);
     }
   }
@@ -453,7 +450,7 @@
   }
 
   // ---------- Ассистент ----------
-  let assistantMode = 'idle'; // idle | task | near | done | bonus
+  let assistantMode = 'idle'; // idle | task | near | done
   let nudgeTimer = null;
 
   function botSay(html, kind = '', actions = []) {
@@ -475,11 +472,7 @@
     if (backend.active) return backend.updateHint();
     const t = S.task;
     if (t < 0 || S.final) return (el.hintBtn.hidden = true);
-    if (S.done[t]) {
-      el.hintBtn.hidden = !(assistantMode === 'bonus' && bonuses[S.bonusIdx]);
-      el.hintBtn.textContent = '💡 Подсказка';
-      return;
-    }
+    if (S.done[t]) return (el.hintBtn.hidden = true);
     el.hintBtn.hidden = false;
     const used = S.hints[t] || 0;
     el.hintBtn.textContent = used >= 3 ? '💡 Подсказки' : `💡 Подсказка ${used + 1}/3`;
@@ -489,17 +482,13 @@
     const t = tasks[S.task];
     botSay(`<span class="hint-step">${level + 1}/3</span>${t.hints[level]}`);
     assistantMode = 'task';
-    goToTarget(true);
+    goToTarget();
     paintMarks();
   }
 
   // ---------- Подсветка кода ----------
-  let bonusHinted = false;
-
   function activeItem() {
-    if (S.task < 0 || S.final) return null;
-    if (!S.done[S.task]) return tasks[S.task];
-    return assistantMode === 'bonus' ? bonuses[S.bonusIdx] : null;
+    return S.task < 0 || S.final || S.done[S.task] ? null : tasks[S.task];
   }
 
   // Где в коде нужное место. Ищем каждый раз заново: строки могли сдвинуться.
@@ -521,16 +510,19 @@
   // Рисует подсветку и сообщает, что ученик изменил не так.
   function paintMarks() {
     const item = activeItem();
-    const isTask = Boolean(item) && !S.done[S.task];
     const marks = { html: [], css: [] };
     const found = { target: false, other: false, cyrillic: false };
     const t = targetOf(item);
-    const hinted = isTask ? (S.hints[S.task] || 0) > 0 : bonusHinted;
     if (t) {
       marks[t.tab].push({ from: t.from, to: t.to, kind: 'soft' });
-      if (hinted && t.line !== null) marks[t.tab].push({ from: t.line, to: t.line, kind: 'hint' });
+      if ((S.hints[S.task] || 0) > 0 && t.line !== null) {
+        marks[t.tab].push({ from: t.line, to: t.line, kind: 'hint' });
+        // Рамка вокруг слова, которое нужно поменять. Выделяет его сам ученик.
+        const m = S[t.tab].split('\n')[t.line].match(/^(.*?:\s*)(.*?)\s*;?\s*$/);
+        if (m && m[2]) marks[t.tab].push({ from: t.line, to: t.line, kind: 'word', col: m[1].length, len: m[2].length });
+      }
     }
-    if (isTask && S.base) {
+    if (item && S.base) {
       for (const tab of ['html', 'css']) {
         const lines = S[tab].split('\n');
         for (const line of FG.changedLines(S.base[tab], S[tab])) {
@@ -546,31 +538,12 @@
     return found;
   }
 
-  // Показать нужное место в коде. select — ещё и выделить слово, которое надо заменить.
-  function goToTarget(select) {
-    const item = activeItem();
-    const t = targetOf(item);
+  // Показать нужное место в коде.
+  function goToTarget() {
+    const t = targetOf(activeItem());
     if (!t) return;
-    const line = t.line === null ? t.from : t.line;
     editor.show(t.tab);
-    editor.scrollToLine(t.tab, line);
-    if (select && t.line !== null) selectValue(item, t);
-  }
-
-  function selectValue(item, t) {
-    const text = S[t.tab].split('\n')[t.line];
-    const m = item.mark.block ? text.match(/^(.*?:\s*)(.*?)\s*;?\s*$/) : null;
-    if (m && m[2]) editor.selectInLine(t.tab, t.line, m[1].length, m[1].length + m[2].length);
-  }
-
-  // Палитра и кнопки-слова: после подсказки слово ложится точно в нужную строчку,
-  // даже если курсор случайно ушёл в другое место.
-  function insertWord(word, smart) {
-    const item = activeItem();
-    const t = targetOf(item);
-    const hinted = item && !S.done[S.task] && (S.hints[S.task] || 0) > 0;
-    if (hinted && smart && t && t.line !== null && t.tab === editor.active) selectValue(item, t);
-    editor.insert(word, smart);
+    editor.scrollToLine(t.tab, t.line === null ? t.from : t.line);
   }
 
   let hintCursor = 0;
@@ -579,14 +552,7 @@
     clearNudge();
     const t = S.task;
     if (t < 0) return;
-    if (S.done[t]) {
-      const bonus = bonuses[S.bonusIdx];
-      if (bonus) botSay(`<span class="bonus-tag">доп. правка</span>${bonus.hint}`);
-      bonusHinted = true;
-      goToTarget(false);
-      paintMarks();
-      return;
-    }
+    if (S.done[t]) return;
     const used = S.hints[t] || 0;
     if (used < 3) {
       S.hints[t] = used + 1;
@@ -645,25 +611,9 @@
         lastNear = '';
         assistantMode = 'task';
         if (S.hints[S.task]) showHint(hintCursor);
-        else botSay('Теперь всё в порядке. Что менять дальше, подсвечено жёлтым. Нужна помощь? Жми <b>💡 Подсказка</b>.');
+        else botSay('Сейчас ошибок нет. Нужное место подсвечено жёлтым. Нужна помощь? Жми <b>💡 Подсказка</b>.');
       }
       return;
-    }
-    const bonus = bonuses[S.bonusIdx];
-    if (bonus && assistantMode === 'bonus') {
-      let ok = false;
-      try {
-        ok = bonus.check(doc, util);
-      } catch {}
-      if (ok) {
-        S.bonusIdx++;
-        S.bonusDone++;
-        addStars(1);
-        save();
-        report();
-        toast('⭐ Доп. правка сделана! +1');
-        offerBonus();
-      }
     }
   }
 
@@ -712,31 +662,10 @@
     const solo = mode === 'solo';
     const actions = [];
     if (solo && next) actions.push({ label: 'Следующий заказ →', primary: true, onClick: () => setTask(S.task + 1) });
-    const bonus = bonuses[S.bonusIdx];
-    if (bonus) actions.push({ label: '⭐ Взять доп. правку', onClick: offerBonus });
-    const wait = solo ? '' : '<br><br>⏳ Ждём, пока остальные тоже сделают заказ. Хочешь ещё звёзд — возьми доп. правку!';
+    const wait = solo ? '' : '<br><br>⏳ Ждём, пока остальные тоже сделают заказ.';
     assistantMode = 'done';
     botSay(`🎉 ${t.learn}${wait}`, 'good', actions);
     paintMarks();
-  }
-
-  function offerBonus() {
-    const bonus = bonuses[S.bonusIdx];
-    const actions = mode === 'solo' && S.task + 1 < tasks.length ? [{ label: 'Следующий заказ →', primary: true, onClick: () => setTask(S.task + 1) }] : [];
-    if (!bonus) {
-      assistantMode = 'done';
-      paintMarks();
-      botSay('Ты сделал(а) все доп. правки! 🔥 Поэкспериментируй: меняй цвета и размеры и смотри, что получится.', 'good', actions);
-      updateHintBtn();
-      return;
-    }
-    assistantMode = 'bonus';
-    bonusHinted = false;
-    botSay(`<span class="bonus-tag">доп. правка</span>${bonus.say}`, '', actions);
-    goToTarget(false);
-    paintMarks();
-    updateHintBtn();
-    scheduleCheck();
   }
 
   // ---------- Переход между заказами ----------
@@ -768,8 +697,8 @@
     assistantMode = 'task';
     if (!S.base || S.base.task !== n) S.base = { task: n, html: S.html, css: S.css };
     save();
-    botSay('Новый заказ! Код, который нужно поменять, подсвечен жёлтым. Не знаешь, что делать? Жми <b>💡 Подсказка</b>, и я скажу, что нажать.');
-    goToTarget(false);
+    botSay('Новый заказ! Код, который нужно поменять, подсвечен жёлтым. Не знаешь, что делать? Жми <b>💡 Подсказка</b>, и я объясню.');
+    goToTarget();
     paintMarks();
     if (changed && !quiet) summonCustomer();
     armNudge();
@@ -817,7 +746,6 @@
     customerSay,
     customerLeave,
     botSay,
-    fixTypo,
     toast,
     burst,
     addStars,
@@ -846,20 +774,9 @@
     'Запрос и ответ: заказ от клиента',
   ];
 
-  // Опечатка теперь в доп. правке, поэтому к концу этапа убираем её сами:
-  // кто не взял правку, не должен оставаться с «бугрерами» на сайте.
-  function fixTypo() {
-    if (!S.html.includes('бугрер')) return;
-    S.html = S.html.replace(/бугрер/g, 'бургер');
-    editor.setSilently('html', S.html);
-    renderHTML();
-    save();
-  }
-
   let finalShown = false;
   async function showFinal(again) {
     S.final = true;
-    fixTypo();
     paintMarks();
     save();
     report();
@@ -907,8 +824,7 @@
       ];
     }
     $('#certList').innerHTML = items.join('');
-    const extra = S.bonusDone + (b ? b.bonusDone : 0);
-    $('#certStars').textContent = `⭐ ${S.stars} ${plural(S.stars, 'звезда', 'звезды', 'звёзд')}${extra ? ` · доп. правок: ${extra}` : ''}`;
+    $('#certStars').textContent = `⭐ ${S.stars} ${plural(S.stars, 'звезда', 'звезды', 'звёзд')}`;
     el.final.classList.add('on');
     burst(80, $('#confetti'));
   }
@@ -954,7 +870,6 @@
           id: S.id,
           done: tasks.map((_, i) => Boolean(S.done[i])),
           hints: tasks.map((_, i) => S.hints[i] || 0),
-          bonus: S.bonusDone + (S.b ? S.b.bonusDone : 0),
           stars: S.stars,
           final: S.final,
           doneB: FG.bTasks.map((_, i) => Boolean(S.b && S.b.done[i])),
@@ -1166,7 +1081,7 @@
   function renderSound() {
     soundBtn.textContent = FG.voice.off ? '🔇' : '🔊';
     soundBtn.disabled = FG.voice.classOff;
-    soundBtn.title = FG.voice.classOff ? 'Преподаватель выключил звук' : FG.voice.off ? 'Включить голос заказчика' : 'Выключить голос заказчика';
+    soundBtn.title = FG.voice.classOff ? 'Преподаватель выключил звук' : FG.voice.off ? 'Включить звук' : 'Выключить звук';
   }
   soundBtn.addEventListener('click', () => {
     FG.voice.setUserOff(!FG.voice.off);

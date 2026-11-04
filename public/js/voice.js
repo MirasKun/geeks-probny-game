@@ -1,38 +1,41 @@
-// Голос шефа: запись из public/audio/chef-voice.mp3.
-// Запись звучит хотя бы раз целиком, а на длинной реплике повторяется с начала.
+// Звуки игры: голос шефа и сирена, когда падает сервер. Записи лежат в public/audio.
+// Голос звучит хотя бы раз целиком, а на длинной реплике повторяется с начала.
 
 window.FG = window.FG || {};
 
 (() => {
   const OFF_KEY = 'geeks-voice-off';
-  const FILE = 'audio/chef-voice.mp3';
-  // В файле есть тишина в начале и в конце: при повторе её пропускаем.
-  const SOUND_FROM = 0.12;
-  const SOUND_TO = 2.5;
+  const FILES = { voice: 'audio/chef-voice.mp3', siren: 'audio/siren.mp3' };
+  // В файле голоса есть тишина в начале и в конце: при повторе её пропускаем.
+  const VOICE_FROM = 0.12;
+  const VOICE_TO = 2.5;
+  // В конце файла сирены тоже тишина.
+  const SIREN_LENGTH = 2.2;
 
   let ctx = null;
-  let bytes = null;
-  let clip = null;
+  const clips = {};
   let current = null;
+  let sirenNow = null;
   let userOff = false;
   let classOff = false;
   try {
     userOff = localStorage.getItem(OFF_KEY) === '1';
   } catch {}
 
-  // Файл качаем сразу, чтобы первая реплика не ждала сеть. Без сервера (file://) шеф просто молчит.
-  const loading = fetch(FILE)
-    .then((res) => (res.ok ? res.arrayBuffer() : null))
-    .then((data) => (bytes = data))
-    .catch(() => {});
+  // Файлы качаем сразу, чтобы первый звук не ждал сеть. Без сервера (file://) звука просто нет.
+  const loading = Object.entries(FILES).map(([key, file]) =>
+    fetch(file)
+      .then((res) => (res.ok ? res.arrayBuffer() : null))
+      .catch(() => null)
+      .then((data) => [key, data]),
+  );
 
   function decode() {
-    loading.then(() => {
-      if (!bytes || clip) return;
-      const data = bytes;
-      bytes = null;
-      ctx.decodeAudioData(data).then((buf) => (clip = buf)).catch(() => {});
-    });
+    for (const item of loading) {
+      item.then(([key, data]) => {
+        if (data) ctx.decodeAudioData(data).then((buf) => (clips[key] = buf)).catch(() => {});
+      });
+    }
   }
 
   // Браузер разрешает звук только после первого клика или нажатия клавиши.
@@ -48,45 +51,68 @@ window.FG = window.FG || {};
   document.addEventListener('pointerdown', unlock, true);
   document.addEventListener('keydown', unlock, true);
 
-  function stop() {
-    if (!current) return;
-    const { source, gain } = current;
+  const canPlay = (key) => !userOff && !classOff && clips[key] && ctx.state === 'running';
+
+  function play(key, offset, stopAt) {
+    const source = ctx.createBufferSource();
+    source.buffer = clips[key];
+    const gain = ctx.createGain();
+    source.connect(gain);
+    gain.connect(ctx.destination);
+    const start = ctx.currentTime + 0.03;
+    source.start(start, offset);
+    source.stop(start + stopAt);
+    return { source, gain, end: start + stopAt };
+  }
+
+  function silence(sound) {
     const now = ctx.currentTime;
-    gain.gain.setValueAtTime(gain.gain.value, now);
-    gain.gain.linearRampToValueAtTime(0, now + 0.05);
+    sound.gain.gain.setValueAtTime(sound.gain.gain.value, now);
+    sound.gain.gain.linearRampToValueAtTime(0, now + 0.05);
     try {
-      source.stop(now + 0.06);
+      sound.source.stop(now + 0.06);
     } catch {}
+  }
+
+  function stop() {
+    if (current) silence(current);
     current = null;
   }
+
+  function stopSiren() {
+    if (sirenNow) silence(sirenNow);
+    sirenNow = null;
+  }
+
+  const isPlaying = (sound) => Boolean(sound && ctx && ctx.currentTime < sound.end);
 
   FG.voice = {
     unlock,
     stop,
+    stopSiren,
     // ms — сколько примерно печатается реплика на экране.
     say(ms) {
       stop();
-      if (userOff || classOff || !clip || ctx.state !== 'running') return;
-      const length = SOUND_TO - SOUND_FROM;
-      const start = ctx.currentTime + 0.03;
-      const end = start + Math.max(1, Math.ceil(ms / 1000 / length)) * length;
-      const source = ctx.createBufferSource();
-      source.buffer = clip;
-      source.loop = true;
-      source.loopStart = SOUND_FROM;
-      source.loopEnd = SOUND_TO;
-      const gain = ctx.createGain();
-      source.connect(gain);
-      gain.connect(ctx.destination);
-      source.start(start, SOUND_FROM);
-      source.stop(end);
-      current = { source, gain, end };
+      if (!canPlay('voice')) return;
+      const length = VOICE_TO - VOICE_FROM;
+      const times = Math.max(1, Math.ceil(ms / 1000 / length));
+      current = play('voice', VOICE_FROM, times * length);
+      current.source.loop = true;
+      current.source.loopStart = VOICE_FROM;
+      current.source.loopEnd = VOICE_TO;
+    },
+    siren() {
+      stopSiren();
+      if (canPlay('siren')) sirenNow = play('siren', 0, SIREN_LENGTH);
     },
     get speaking() {
-      return Boolean(current && ctx && ctx.currentTime < current.end);
+      return isPlaying(current);
+    },
+    get sirenPlaying() {
+      return isPlaying(sirenNow);
     },
     get ready() {
-      return Boolean(clip);
+      return Boolean(clips.voice && clips.siren);
     },
     get off() {
       return userOff || classOff;
@@ -100,11 +126,17 @@ window.FG = window.FG || {};
         if (on) localStorage.setItem(OFF_KEY, '1');
         else localStorage.removeItem(OFF_KEY);
       } catch {}
-      if (on) stop();
+      if (on) {
+        stop();
+        stopSiren();
+      }
     },
     setClassOff(on) {
       classOff = on;
-      if (on) stop();
+      if (on) {
+        stop();
+        stopSiren();
+      }
     },
   };
 })();

@@ -236,6 +236,7 @@ window.FG = window.FG || {};
       p.pre.scrollLeft = p.ta.scrollLeft;
       p.gutter.scrollTop = p.ta.scrollTop;
       p.marks.style.transform = `translateY(${-p.ta.scrollTop}px)`;
+      p.marks.style.setProperty('--sx', `${-p.ta.scrollLeft}px`);
       if (p.markRange) {
         const lh = lineHeight(p);
         const [a, b] = p.markRange;
@@ -266,7 +267,13 @@ window.FG = window.FG || {};
     function drawMarks(p) {
       const lh = lineHeight(p);
       const top = padTop(p);
-      p.marks.innerHTML = p.marksList.map((m) => `<div class="code-mark ${m.kind}" style="top:${top + m.from * lh}px;height:${(m.to - m.from + 1) * lh}px"></div>`).join('');
+      const left = parseFloat(getComputedStyle(p.ta).paddingLeft) || 0;
+      p.marks.innerHTML = p.marksList
+        .map((m) => {
+          const word = m.col === undefined ? '' : `left:calc(${left}px + ${m.col}ch);width:${m.len}ch;`;
+          return `<div class="code-mark ${m.kind}" style="top:${top + m.from * lh}px;height:${(m.to - m.from + 1) * lh}px;${word}"></div>`;
+        })
+        .join('');
       for (const b of tabButtons) if (b.dataset.tab === p.tab) b.classList.toggle('has-bad', p.marksList.some((m) => m.kind === 'bad'));
     }
 
@@ -339,7 +346,8 @@ window.FG = window.FG || {};
         p.refresh();
       },
 
-      reveal(tab, from, to = from, atEnd = false) {
+      // Показать строки. caret: false — только показать, курсор не трогать.
+      reveal(tab, from, to = from, caret = true) {
         const p = panes[tab];
         show(tab);
         const lh = lineHeight(p);
@@ -349,12 +357,13 @@ window.FG = window.FG || {};
         p.mark.classList.remove('flash');
         void p.mark.offsetWidth;
         p.mark.classList.add('flash', 'on');
-        const lines = p.ta.value.split('\n');
-        let pos = 0;
-        for (let i = 0; i < from; i++) pos += lines[i].length + 1;
-        if (atEnd) pos += lines[from].length;
-        p.ta.focus({ preventScroll: true });
-        p.ta.setSelectionRange(pos, pos);
+        if (caret) {
+          const lines = p.ta.value.split('\n');
+          let pos = 0;
+          for (let i = 0; i < from; i++) pos += lines[i].length + 1;
+          p.ta.focus({ preventScroll: true });
+          p.ta.setSelectionRange(pos, pos);
+        }
         clearTimeout(p.markTimer);
         p.markTimer = setTimeout(() => {
           p.mark.classList.remove('on');
@@ -362,7 +371,8 @@ window.FG = window.FG || {};
         }, 6000);
       },
 
-      // Подсветка строк: [{ from, to, kind: 'soft' | 'hint' | 'bad' }]. Номера строк с нуля.
+      // Подсветка строк: [{ from, to, kind: 'soft' | 'hint' | 'bad' | 'word', col, len }].
+      // Номера строк с нуля. col и len отмечают одно слово в строке (только для 'word').
       setMarks(tab, list) {
         const p = panes[tab];
         p.marksList = list;
@@ -373,21 +383,6 @@ window.FG = window.FG || {};
       scrollToLine(tab, line) {
         scrollTo(panes[tab], line);
         sync(panes[tab]);
-      },
-
-      // Выделить кусок строки: дальше клик по палитре или набор сразу его заменит.
-      selectInLine(tab, line, start, end) {
-        const p = panes[tab];
-        const lines = p.ta.value.split('\n');
-        let pos = 0;
-        for (let i = 0; i < line; i++) pos += lines[i].length + 1;
-        p.ta.focus({ preventScroll: true });
-        p.ta.setSelectionRange(pos + start, pos + end);
-      },
-
-      caretLine(tab) {
-        const p = panes[tab];
-        return p.ta.value.slice(0, p.ta.selectionStart).split('\n').length - 1;
       },
 
       lock(on) {

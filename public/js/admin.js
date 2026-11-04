@@ -285,7 +285,7 @@
         <div class="st-name"><span class="conn ${s.online ? 'ok' : ''}"></span><span></span></div>
         <div class="st-phone"></div>
         <div class="st-cells">${cells}</div>
-        <div class="st-meta"><span>⭐ ${s.stars || 0}</span><span>💡 ${hints}</span>${s.bonus ? `<span>+${s.bonus} доп.</span>` : ''}${stt === 'help' ? '<span style="color:var(--orange)">подойдите</span>' : ''}</div>`;
+        <div class="st-meta"><span>⭐ ${s.stars || 0}</span><span>💡 ${hints}</span>${stt === 'help' ? '<span style="color:var(--orange)">подойдите</span>' : ''}</div>`;
       card.querySelector('.st-name span:last-child').textContent = s.name;
       card.querySelector('.st-phone').textContent = s.phone || '';
       card.querySelector('.st-kick').addEventListener('click', async () => {
