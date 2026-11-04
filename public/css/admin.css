@@ -182,3 +182,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .btn-crash { width: 100%; margin-top: 12px; padding: 13px 14px; background: var(--red); color: #fff; font-size: 15px; font-weight: 800; box-shadow: 0 4px 0 #b8322b; }
 .btn-crash.on { background: var(--green); color: #0d3320; box-shadow: 0 4px 0 #22a862; }
 .btn-crash:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Окно подтверждения */
+.ask { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 16px; background: rgba(20, 21, 25, 0.72); }
+.ask-card { width: min(440px, 100%); padding: 22px; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5); }
+.ask-card p { margin: 0 0 18px; line-height: 1.5; font-weight: 600; white-space: pre-line; }
+.ask-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.ask-btns .btn-ghost { padding: 10px 16px; font-size: 15px; }

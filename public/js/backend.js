@@ -486,8 +486,8 @@ FG.createBackend = function (G) {
     });
     $('#bCodeChips').appendChild(letter);
     $('#bCodeUndo').addEventListener('click', () => crash && codeEd.undo());
-    $('#bCodeReset').addEventListener('click', () => {
-      if (crash && confirm('Вернуть код к моменту аварии?')) codeEd.replaceAll('py', FG.serverBug(state().crashFixedCode));
+    $('#bCodeReset').addEventListener('click', async () => {
+      if (crash && (await FG.ask('Вернуть код к моменту аварии?', 'Вернуть')) && crash) codeEd.replaceAll('py', FG.serverBug(state().crashFixedCode));
     });
   }
 

@@ -89,7 +89,9 @@
   function openStream() {
     es = new EventSource(`/api/stream?role=admin&pin=${encodeURIComponent(pin)}`);
     es.addEventListener('state', (e) => {
+      const lesson = st && st.lessonId;
       st = JSON.parse(e.data);
+      if (lesson && lesson !== st.lessonId) resetView();
       clockOffset = st.now - Date.now();
       setConn(true);
       render();
@@ -110,10 +112,10 @@
   });
   $('#crashBtn').addEventListener('click', () => send('crash'));
   document.querySelectorAll('.stab').forEach((b) =>
-    b.addEventListener('click', () => {
+    b.addEventListener('click', async () => {
       const to = Number(b.dataset.stage);
       if (!st || to === st.stage) return;
-      if (confirm(`Перейти на этап ${to} у всех учеников?`)) send('stage', { stage: to });
+      if (await FG.ask(`Перейти на этап ${to} у всех учеников?`, 'Перейти')) send('stage', { stage: to });
     }),
   );
   $('#prevBtn').addEventListener('click', () => send('prev'));
@@ -121,14 +123,34 @@
   $('#cssOffBtn').addEventListener('click', () => send('cssOff'));
   $('#voiceBtn').addEventListener('click', () => send('voice'));
   $('#hintAllBtn').addEventListener('click', () => send('hintAll'));
-  $('#finalBtn').addEventListener('click', () => {
+  $('#finalBtn').addEventListener('click', async () => {
     const text = st && st.stage === 2 ? 'Показать финал всем ученикам? Шеф поблагодарит, и у всех откроется сертификат.' : 'Закончить этап 1 у всех учеников? Заказчик скажет «Наконец-то, мне нравится!»';
-    if (confirm(text)) send('final');
+    if (await FG.ask(text, 'Показать финал')) send('final');
   });
   $('#startTimer').addEventListener('click', () => send('start'));
-  $('#resetBtn').addEventListener('click', () => {
-    if (confirm('Начать новый урок?\nСписок учеников очистится, у учеников код сбросится к началу.\nВсе, кто играл, останутся во вкладке «История».')) send('reset');
+  const RESET_LABEL = $('#resetBtn').textContent;
+  $('#resetBtn').addEventListener('click', async () => {
+    if (!(await FG.ask('Начать новый урок?\nСписок учеников очистится, у учеников код сбросится к началу.\nВсе, кто играл, останутся во вкладке «История».', 'Начать новый урок'))) return;
+    const btn = $('#resetBtn');
+    btn.disabled = true;
+    btn.textContent = 'Начинаем новый урок…';
+    let ok = false;
+    try {
+      ok = (await api('reset')).ok;
+    } catch {}
+    btn.disabled = false;
+    btn.textContent = ok ? '✓ Новый урок начат' : '⚠️ Не получилось: проверьте интернет и нажмите ещё раз';
+    setTimeout(() => (btn.textContent = RESET_LABEL), 3000);
   });
+
+  // Новый урок: пульт тоже возвращается к началу.
+  function resetView() {
+    document.querySelectorAll('.notes-tabs').forEach((n) => n.querySelectorAll('.ntab').forEach((b, i) => b.classList.toggle('active', i === 0)));
+    showNote(document.querySelector('.notes-tabs[data-stage="1"] .ntab'));
+    $('#histSearch').value = '';
+    document.querySelector('.vtab[data-view="live"]').click();
+    window.scrollTo(0, 0);
+  }
 
   function showNote(b) {
     b.parentElement.querySelectorAll('.ntab').forEach((x) => x.classList.toggle('active', x === b));
@@ -239,8 +261,8 @@
         <div class="st-meta"><span>⭐ ${s.stars || 0}</span><span>💡 ${hints}</span>${s.bonus ? `<span>+${s.bonus} доп.</span>` : ''}${stt === 'help' ? '<span style="color:var(--orange)">подойдите</span>' : ''}</div>`;
       card.querySelector('.st-name span:last-child').textContent = s.name;
       card.querySelector('.st-phone').textContent = s.phone || '';
-      card.querySelector('.st-kick').addEventListener('click', () => {
-        if (confirm(`Убрать «${s.name}» из урока и из истории?`)) send('kick', { id: s.id });
+      card.querySelector('.st-kick').addEventListener('click', async () => {
+        if (await FG.ask(`Убрать «${s.name}» из урока и из истории?`, 'Убрать')) send('kick', { id: s.id });
       });
       box.appendChild(card);
     }
@@ -343,7 +365,7 @@
       row.querySelector('.hist-phone').textContent = h.phone || '—';
       row.querySelector('.hist-res').textContent = result(h);
       row.querySelector('.hist-del').addEventListener('click', async () => {
-        if (!confirm(`Удалить «${h.name}» из истории?`)) return;
+        if (!(await FG.ask(`Удалить «${h.name}» из истории?`, 'Удалить'))) return;
         await api('historyDelete', pin, { key: h.key }).catch(() => {});
         history = history.filter((x) => x.key !== h.key);
         renderHistory();

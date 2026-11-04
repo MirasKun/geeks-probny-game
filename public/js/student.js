@@ -189,9 +189,9 @@
   renderChips(editor.active);
 
   $('#undoBtn').addEventListener('click', () => editor.undo());
-  $('#resetBtn').addEventListener('click', () => {
+  $('#resetBtn').addEventListener('click', async () => {
     const tab = editor.active;
-    if (!confirm(`Вернуть весь код во вкладке ${tab.toUpperCase()} к самому началу?\nВсе изменения в этой вкладке пропадут (но кнопка «Отменить» сможет их вернуть).`)) return;
+    if (!(await FG.ask(`Вернуть весь код во вкладке ${tab.toUpperCase()} к самому началу?\nВсе изменения в этой вкладке пропадут (но кнопка «Отменить» сможет их вернуть).`, 'Вернуть'))) return;
     if (S.base) S.base[tab] = FG.starter[tab];
     editor.replaceAll(tab, FG.starter[tab]);
   });
