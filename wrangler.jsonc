@@ -1,0 +1,17 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "geeks-frontend",
+  "main": "worker/index.js",
+  "compatibility_date": "2025-09-01",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "html_handling": "auto-trailing-slash"
+  },
+  "durable_objects": {
+    "bindings": [{ "name": "ROOM", "class_name": "Classroom" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Classroom"] }],
+  // PIN для пульта преподавателя (можно поменять на свой и снова сделать deploy).
+  "vars": { "ADMIN_PIN": "2342" }
+}

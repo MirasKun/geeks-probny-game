@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Студия фронтенда · GEEKS</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍔</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/student.css">
+</head>
+<body>
+
+  <!-- Экран входа -->
+  <div class="join" id="join">
+    <div class="join-card">
+      <div class="join-sprite" id="joinSprite"></div>
+      <div class="brand"><span class="brand-word">GEEKS</span><span class="brand-badge">студия</span></div>
+      <h1>Сегодня ты — <mark>фронтенд-разработчик</mark></h1>
+      <p>Тебе пришёл первый заказ от настоящей бургерной. Заказчик будет просить правки, а ты — менять код сайта.</p>
+      <form id="joinForm" autocomplete="off">
+        <label for="nameInput">Как тебя зовут?</label>
+        <div class="join-row">
+          <input id="nameInput" maxlength="30" placeholder="Например, Айбек" required>
+          <button class="btn btn-primary" type="submit">Войти в студию →</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Игра -->
+  <div class="app" id="app" hidden>
+    <header class="topbar">
+      <div class="brand"><span class="brand-word">GEEKS</span><span class="brand-badge">студия</span></div>
+
+      <button class="order" id="orderCard" type="button" title="Перечитать заказ">
+        <span class="order-label" id="orderLabel">Ждём заказчика…</span>
+        <span class="order-text" id="orderText">Скоро придёт первый заказ</span>
+      </button>
+
+      <div class="steps" id="steps" aria-label="Прогресс заказов"></div>
+
+      <div class="stars" id="stars" title="Звёзды за заказы">⭐ <b id="starCount">0</b></div>
+      <div class="who">
+        <span class="conn" id="conn" title=""></span>
+        <span id="whoName"></span>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <!-- Сайт заказчика -->
+      <section class="stage" id="stage">
+        <div class="browser">
+          <div class="browser-bar">
+            <span class="dots"><i></i><i></i><i></i></span>
+            <span class="url">🔒 burgerbro.kg</span>
+            <span class="browser-tag">сайт заказчика</span>
+          </div>
+          <div class="frame-wrap">
+            <iframe id="site" title="Сайт бургерной" sandbox="allow-same-origin"></iframe>
+            <div class="skeleton-banner" id="skeletonBanner">🦴 CSS выключен. Это голый HTML — «скелет» сайта без «одежды».</div>
+          </div>
+        </div>
+
+        <div class="lupa-tip" id="lupaTip"></div>
+        <div class="lupa-pop" id="lupaPop"></div>
+
+        <!-- Заказчик -->
+        <div class="customer" id="customer">
+          <div class="bubble" id="bubble">
+            <div class="bubble-name">Заказчик · Burger Bro</div>
+            <div class="bubble-text" id="bubbleText"></div>
+            <div class="bubble-actions" id="bubbleActions"></div>
+          </div>
+          <div class="sprite" id="customerSprite"></div>
+          <div class="shadow"></div>
+        </div>
+      </section>
+
+      <!-- Редактор -->
+      <section class="editor" id="editor">
+        <div class="win-bar">
+          <span class="dots"><i></i><i></i><i></i></span>
+          <div class="tabs">
+            <button class="tab" data-tab="html" type="button"><b>HTML</b><small>index.html · скелет</small></button>
+            <button class="tab" data-tab="css" type="button"><b>CSS</b><small>style.css · одежда</small></button>
+          </div>
+          <button class="lupa-btn" id="lupaBtn" type="button" title="Наведи на сайт, чтобы узнать имя элемента">🔍 Лупа</button>
+        </div>
+
+        <div class="panes"></div>
+
+        <div class="toolbar">
+          <div class="palette" id="palette"></div>
+          <div class="tools">
+            <div class="chips" id="chips"></div>
+            <div class="tool-btns">
+              <button class="btn btn-ghost" id="undoBtn" type="button" title="Отменить последнее изменение">↶ Отменить</button>
+              <button class="btn btn-ghost" id="resetBtn" type="button" title="Вернуть код вкладки к началу">⟲ Сбросить</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="assistant" id="assistant">
+          <div class="bot" id="bot"></div>
+          <div class="assistant-body">
+            <div class="assistant-name">Бит · ассистент</div>
+            <div class="assistant-text" id="assistantText"></div>
+            <div class="assistant-actions" id="assistantActions"></div>
+          </div>
+          <button class="btn btn-hint" id="hintBtn" type="button">💡 Подсказка</button>
+        </div>
+
+        <div class="editor-lock" id="editorLock">
+          <div class="lock-card">
+            <div class="lock-emoji">⏳</div>
+            <b>Ждём заказчика…</b>
+            <p id="lockText">Пока посмотри на сайт бургерной слева. Его сделал фронтенд-разработчик — человек, который создаёт то, что ты видишь и нажимаешь на сайтах.</p>
+            <button class="btn btn-primary" id="soloStart" type="button" hidden>Начать игру ▶</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Внимание на преподавателя -->
+    <div class="overlay attention" id="attention">
+      <div class="attention-card">
+        <div class="attention-eyes">👀</div>
+        <h2>Смотрим на преподавателя</h2>
+        <p>Руки от клавиатуры — сейчас будет важное!</p>
+      </div>
+    </div>
+
+    <!-- Финал -->
+    <div class="overlay final" id="final">
+      <div class="confetti" id="confetti"></div>
+      <div class="cert">
+        <div class="cert-top">
+          <div class="brand"><span class="brand-word">GEEKS</span><span class="brand-badge">студия</span></div>
+          <span class="cert-stamp">ЗАКАЗ<br>СДАН</span>
+        </div>
+        <div class="cert-kicker">Сертификат стажёра</div>
+        <div class="cert-name" id="certName"></div>
+        <div class="cert-role">Frontend-разработчик · первый заказ «Burger Bro»</div>
+        <ul class="cert-list" id="certList"></ul>
+        <div class="cert-stars" id="certStars"></div>
+        <div class="cert-actions">
+          <button class="btn btn-primary" id="certClose" type="button">Посмотреть мой сайт</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+  </div>
+
+  <script src="js/starter.js"></script>
+  <script src="js/tasks.js"></script>
+  <script src="js/pixel.js"></script>
+  <script src="js/editor.js"></script>
+  <script src="js/student.js"></script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+node_modules/
+.wrangler/
+.lesson.json
+.history.json

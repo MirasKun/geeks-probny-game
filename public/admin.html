@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Пульт преподавателя · GEEKS</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/admin.css">
+</head>
+<body>
+
+  <!-- Вход -->
+  <div class="login" id="login">
+    <form class="login-card" id="loginForm">
+      <div class="brand"><span class="brand-word">GEEKS</span><span class="brand-badge">пульт</span></div>
+      <h1>Пульт преподавателя</h1>
+      <p>Введите PIN, чтобы управлять уроком.</p>
+      <input id="pinInput" type="password" placeholder="PIN" autocomplete="current-password" required>
+      <button class="btn btn-primary" type="submit">Войти</button>
+      <div class="login-err" id="loginErr"></div>
+    </form>
+  </div>
+
+  <div class="admin" id="admin" hidden>
+    <header class="top">
+      <div class="brand"><span class="brand-word">GEEKS</span><span class="brand-badge">пульт</span></div>
+      <div class="join-url">
+        <span>Ученики открывают:</span>
+        <b id="joinUrl">…</b>
+        <button class="btn btn-ghost" id="copyUrl" type="button">Копировать</button>
+      </div>
+      <div class="live"><span class="conn" id="conn"></span><span id="connText">Подключение…</span></div>
+    </header>
+
+    <main class="grid">
+      <!-- Левая колонка: управление -->
+      <section class="col">
+        <div class="card timer-card">
+          <div class="timer-row">
+            <div>
+              <div class="kicker">Время урока</div>
+              <div class="timer" id="timer">00:00</div>
+            </div>
+            <button class="btn btn-ghost" id="startTimer" type="button">▶ Запустить таймер</button>
+          </div>
+          <div class="timeline" id="timeline">
+            <div class="seg seg-intro" style="--w: 7"><span>Рассказ</span><small>0–7</small></div>
+            <div class="seg seg-game" style="--w: 18"><span>Игра · 5 заказов</span><small>7–25</small></div>
+            <div class="seg seg-outro" style="--w: 5"><span>Итоги</span><small>25–30</small></div>
+            <div class="needle" id="needle"></div>
+          </div>
+          <div class="pace" id="pace"></div>
+        </div>
+
+        <div class="card now-card">
+          <div class="kicker" id="phaseLabel">Сейчас</div>
+          <div class="now-title" id="nowTitle">Лобби — ученики входят</div>
+          <blockquote class="now-say" id="nowSay"></blockquote>
+          <div class="now-answer" id="nowAnswer"></div>
+
+          <button class="btn btn-big" id="nextBtn" type="button">🧑‍🍳 Выпустить заказчика</button>
+
+          <div class="ctrl">
+            <button class="btn btn-ctrl" id="prevBtn" type="button">← Назад</button>
+            <button class="btn btn-ctrl toggle" id="attentionBtn" type="button">👀 Внимание на меня</button>
+            <button class="btn btn-ctrl toggle" id="cssOffBtn" type="button">🦴 Выключить CSS у всех</button>
+            <button class="btn btn-ctrl" id="hintAllBtn" type="button">💡 Подсказка всем</button>
+            <button class="btn btn-ctrl" id="finalBtn" type="button">🎉 Финал для всех</button>
+          </div>
+        </div>
+
+        <div class="card notes">
+          <div class="notes-tabs">
+            <button class="ntab active" data-note="intro" type="button">Рассказ · 0–7</button>
+            <button class="ntab" data-note="game" type="button">Игра · 7–25</button>
+            <button class="ntab" data-note="outro" type="button">Итоги · 25–30</button>
+          </div>
+          <div class="note active" data-note="intro">
+            <ol>
+              <li><b>Что такое фронтенд.</b> Всё, что вы видите на сайте и нажимаете: кнопки, цвета, тексты, анимации — это фронтенд.</li>
+              <li><b>Фронтенд и бэкенд.</b> Ресторан: бэкенд — кухня (готовит, хранит продукты = данные). Фронтенд — зал, меню и официант: то, что видит гость.</li>
+              <li><b>Из чего сделан сайт.</b> HTML — скелет (что есть на странице). CSS — одежда (как выглядит). JavaScript — мышцы (движение и логика). Сегодня трогаем HTML и CSS.</li>
+              <li><b>Демо:</b> нажмите «🦴 Выключить CSS у всех» — у всех сайт станет «голым». Включите обратно: «Вот что делает CSS».</li>
+              <li><b>Работа с заказчиком.</b> Фронтендеру приходят правки: «поменяй цвет», «тут баг». Сейчас к вам придёт настоящий заказчик → <b>Выпустить заказчика</b>.</li>
+            </ol>
+          </div>
+          <div class="note" data-note="game">
+            <ol>
+              <li>Ориентир — <b>3–4 минуты на заказ</b>. Смотрите на таблицу справа: зелёные готовы, оранжевым нужна помощь.</li>
+              <li>Первый заказ покажите вместе: «Включите 🔍 Лупу и кликните по кнопке». Дальше пусть ищут сами.</li>
+              <li>Если половина застряла — <b>💡 Подсказка всем</b> (каждое нажатие — следующая ступенька).</li>
+              <li>Перед багом (заказ 4) можно нажать <b>👀 Внимание</b> и сказать: «Баг — это ошибка. Искать баги — работа программиста».</li>
+              <li>Кто закончил раньше — получает доп. правки сам, ждать не скучно.</li>
+            </ol>
+          </div>
+          <div class="note" data-note="outro">
+            <ol>
+              <li>Когда большинство сделали 5-й заказ — <b>🎉 Финал для всех</b>. Заказчик скажет «Наконец-то!», у всех сертификаты.</li>
+              <li>Спросите: «Какой цвет фона вы выбрали?» — пусть покажут соседям.</li>
+              <li>«Сегодня вы сделали то, что фронтендеры делают каждый день: правки по просьбе заказчика, поиск бага, свой дизайн».</li>
+              <li>Что дальше на курсе: JavaScript, свои проекты, портфолио, первые реальные заказы.</li>
+            </ol>
+          </div>
+        </div>
+
+        <button class="btn btn-danger" id="resetBtn" type="button">🔄 Новый урок (очистить список, история сохранится)</button>
+      </section>
+
+      <!-- Правая колонка: ученики -->
+      <section class="col students-col">
+        <div class="view-tabs">
+          <button class="vtab active" data-view="live" type="button">Сейчас на уроке</button>
+          <button class="vtab" data-view="history" type="button">История</button>
+        </div>
+
+        <div class="card" data-view="live">
+          <div class="students-head">
+            <div>
+              <div class="kicker">Ученики</div>
+              <div class="summary" id="summary">Пока никого</div>
+            </div>
+            <div class="legend">
+              <span><i class="lg done"></i>сделал</span>
+              <span><i class="lg work"></i>думает</span>
+              <span><i class="lg help"></i>нужна помощь</span>
+            </div>
+          </div>
+          <div class="progress-bar"><div id="progressFill"></div></div>
+          <div class="students" id="students"></div>
+          <div class="empty" id="empty">
+            <div class="empty-emoji">🧑‍💻</div>
+            Попросите учеников открыть адрес сверху и ввести имя.<br>Они появятся здесь.
+          </div>
+        </div>
+
+        <div class="card" data-view="history" hidden>
+          <div class="students-head">
+            <div>
+              <div class="kicker">Все, кто играл</div>
+              <div class="summary" id="histSummary">Загрузка…</div>
+            </div>
+            <div class="hist-tools">
+              <input id="histSearch" type="search" placeholder="Найти по имени">
+              <button class="btn btn-ghost" id="histCsv" type="button">⬇ Скачать для Excel</button>
+            </div>
+          </div>
+          <div class="hist" id="hist"></div>
+          <div class="empty" id="histEmpty" hidden>
+            <div class="empty-emoji">📒</div>
+            Здесь появятся все ученики: имя, дата и сколько заказов они сделали.<br>История не стирается кнопкой «Новый урок».
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="js/tasks.js"></script>
+  <script src="js/admin.js"></script>
+</body>
+</html>
