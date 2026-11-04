@@ -11,9 +11,13 @@
 
 Уже опубликовано:
 
-- **Ученики:** <https://geeks-frontend.karabalta-bot.workers.dev>
-- **Пульт преподавателя:** <https://geeks-frontend.karabalta-bot.workers.dev/admin#pin=2342>
+- **Ученики:** <https://geeks.karabalta-bot.workers.dev>
+- **Пульт преподавателя:** <https://geeks.karabalta-bot.workers.dev/pult#2342>
   (PIN вводить не нужно, ссылка входит сама; сохраните её в закладки)
+
+Короткий адрес даёт маленький Worker `geeks` из папки `short-link/`: он только передаёт запросы основному
+Worker `geeks-frontend`. Старые ссылки тоже работают. Менять его нужно редко, публикуется он отдельно:
+`npx wrangler deploy --config short-link/wrangler.jsonc`.
 
 PIN лежит в `wrangler.jsonc` (`"ADMIN_PIN"`) и один и тот же для Cloudflare и ноутбука.
 Ученикам ссылку на пульт не показывайте.

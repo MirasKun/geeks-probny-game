@@ -105,7 +105,7 @@ function readBody(req) {
 async function serveStatic(url, res) {
   let p = decodeURIComponent(url.pathname);
   if (p === '/') p = '/index.html';
-  else if (p === '/admin' || p === '/admin/') p = '/admin.html';
+  else if (p === '/admin' || p === '/admin/' || p === '/pult') p = '/admin.html';
   const file = path.normalize(path.join(ROOT, p));
   if (!file.startsWith(ROOT)) return sendJson(res, 403, { error: 'forbidden' });
   try {

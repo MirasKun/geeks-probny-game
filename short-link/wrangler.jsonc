@@ -1,0 +1,7 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "geeks",
+  "main": "index.js",
+  "compatibility_date": "2025-09-01",
+  "services": [{ "binding": "APP", "service": "geeks-frontend" }]
+}

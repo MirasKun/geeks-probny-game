@@ -95,6 +95,11 @@ export default {
       const room = env.ROOM.get(env.ROOM.idFromName('classroom'));
       return room.fetch(request);
     }
+    // Короткий адрес пульта.
+    if (url.pathname === '/pult') {
+      url.pathname = '/admin';
+      return env.ASSETS.fetch(new Request(url, request));
+    }
     return env.ASSETS.fetch(request);
   },
 };

@@ -45,8 +45,9 @@
     try {
       saved = localStorage.getItem(PIN_KEY) || '';
     } catch {}
-    // Ссылка вида /admin#pin=1234 входит сама, PIN вводить не нужно.
-    const fromLink = new URLSearchParams(location.hash.slice(1)).get('pin');
+    // Ссылка вида /pult#1234 или /admin#pin=1234 входит сама, PIN вводить не нужно.
+    const hash = location.hash.slice(1);
+    const fromLink = new URLSearchParams(hash).get('pin') || (/^\d+$/.test(hash) ? hash : '');
     if (fromLink) {
       window.history.replaceState(null, '', location.pathname);
       saved = fromLink;
@@ -71,15 +72,41 @@
     }, 5000);
   }
 
+  // Новый способ копирования работает не везде (в панели приложения Claude браузер его запрещает),
+  // поэтому сначала пробуем старый: он срабатывает прямо в момент клика.
+  async function copyText(text) {
+    const area = document.createElement('textarea');
+    area.value = text;
+    area.setAttribute('readonly', '');
+    area.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
+    document.body.appendChild(area);
+    area.select();
+    let done = false;
+    try {
+      done = document.execCommand('copy');
+    } catch {}
+    area.remove();
+    if (done) return true;
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async function loadInfo() {
     try {
       const { urls } = await (await fetch('/api/info')).json();
-      const url = urls.find((u) => !u.includes('localhost')) || urls[0] || location.origin;
+      // На ноутбуке ученикам нужен адрес в Wi-Fi, в интернете — тот адрес, по которому открыт пульт.
+      const local = /^(localhost|127\.)/.test(location.hostname);
+      const url = local ? urls.find((u) => !u.includes('localhost')) || urls[0] || location.origin : location.origin;
       $('#joinUrl').textContent = url.replace(/^https?:\/\//, '');
-      $('#copyUrl').onclick = () => {
-        navigator.clipboard?.writeText(url);
-        $('#copyUrl').textContent = 'Скопировано ✓';
-        setTimeout(() => ($('#copyUrl').textContent = 'Копировать'), 1500);
+      $('#copyUrl').onclick = async () => {
+        const copied = await copyText(url);
+        $('#copyUrl').textContent = copied ? 'Скопировано ✓' : 'Выделите ссылку и нажмите Ctrl+C';
+        if (!copied) window.getSelection().selectAllChildren($('#joinUrl'));
+        setTimeout(() => ($('#copyUrl').textContent = 'Копировать'), copied ? 1500 : 4000);
       };
     } catch {
       $('#joinUrl').textContent = location.host;
