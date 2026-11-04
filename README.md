@@ -59,13 +59,9 @@ PIN лежит в `wrangler.jsonc` (`"ADMIN_PIN"`) и один и тот же д
 
 ### Автоматическая публикация из GitHub
 
-Код лежит в <https://github.com/MirasKun/geeks-probny-game>. Когда Cloudflare подключён
-к репозиторию, каждый push в ветку `main` сам публикует сайт за 1–2 минуты, `wrangler`
-запускать не нужно.
-
-Подключение (один раз): Cloudflare → **Workers & Pages** → `geeks-frontend` → **Settings** →
-**Build** → **Connect** → GitHub → репозиторий `geeks-probny-game`, ветка `main`,
-Deploy command `npx wrangler deploy`, остальное оставить как есть.
+Код лежит в <https://github.com/MirasKun/geeks-probny-game>. Cloudflare уже подключён:
+каждый push в ветку `main` сам публикует сайт за 1–2 минуты, `wrangler` запускать не нужно.
+Ход публикации виден в Cloudflare: **Workers & Pages** → `geeks-frontend` → **Deployments**.
 
 ## Вариант 2 — ноутбук преподавателя (без интернета)
 
