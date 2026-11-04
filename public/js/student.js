@@ -21,6 +21,8 @@
     bonusIdx: 0,
     bonusDone: 0,
     final: false,
+    stage: 1,
+    b: null, // прогресс этапа 2 (см. backend.js)
   });
   let S = blank();
   try {
@@ -32,12 +34,29 @@
     } catch {}
   };
 
+  // Имя спрашиваем при каждом новом открытии сайта. Перезагрузка вкладки его не спрашивает.
+  const SESSION = 'geeks-frontend-session';
+  const hasSession = () => {
+    try {
+      return sessionStorage.getItem(SESSION) === '1';
+    } catch {
+      return false;
+    }
+  };
+  const setSession = (on) => {
+    try {
+      if (on) sessionStorage.setItem(SESSION, '1');
+      else sessionStorage.removeItem(SESSION);
+    } catch {}
+  };
+
   // ---------- Состояние связи ----------
   let mode = 'connecting'; // connecting | server | solo
   let lastServerTask;
   let lastPhase;
   let es = null;
   let offlineTimer = null;
+  let typedName = false; // имя только что ввели на экране входа
 
   // ---------- Элементы ----------
   const el = {
@@ -103,6 +122,7 @@
     if (!doc) return;
     const y = doc.scrollingElement ? doc.scrollingElement.scrollTop : 0;
     doc.body.innerHTML = S.html;
+    backend.paintSite(doc);
     if (doc.scrollingElement) doc.scrollingElement.scrollTop = y;
   }
 
@@ -252,6 +272,7 @@
     doc.addEventListener('click', (e) => {
       const a = e.target.closest && e.target.closest('a');
       if (a) e.preventDefault();
+      backend.siteClick(e);
       if (!lupaOn || !lupaTarget) return;
       e.preventDefault();
       openLupaPop(lupaTarget);
@@ -331,8 +352,9 @@
   let typeTimer = null;
   let customerHideTimer = null;
 
+  let chef = false;
   function setMood(mood) {
-    el.sprite.innerHTML = FG.pixel.customer(mood);
+    el.sprite.innerHTML = FG.pixel.customer(mood, chef);
     el.customer.classList.toggle('happy', mood === 'happy');
     el.customer.classList.toggle('angry', mood === 'angry');
   }
@@ -434,6 +456,7 @@
   }
 
   function updateHintBtn() {
+    if (backend.active) return backend.updateHint();
     const t = S.task;
     if (t < 0 || S.final) return (el.hintBtn.hidden = true);
     if (S.done[t]) {
@@ -458,6 +481,7 @@
 
   let hintCursor = 0;
   el.hintBtn.addEventListener('click', () => {
+    if (backend.active) return backend.hint();
     clearNudge();
     const t = S.task;
     if (t < 0) return;
@@ -487,7 +511,7 @@
   function armNudge() {
     clearNudge();
     nudgeTimer = setTimeout(() => {
-      if (S.task < 0 || S.done[S.task] || (S.hints[S.task] || 0) > 0) return;
+      if (backend.active || S.task < 0 || S.done[S.task] || (S.hints[S.task] || 0) > 0) return;
       el.assistant.classList.add('nudge');
       botSay('Не знаешь, с чего начать? Это нормально — все программисты так начинали 🙂 Нажми <b>💡 Подсказка</b>, я помогу.');
     }, 60000);
@@ -504,7 +528,7 @@
   }
 
   function runCheck() {
-    if (!doc || cssOff || S.task < 0 || S.final) return;
+    if (!doc || cssOff || backend.active || S.task < 0 || S.final) return;
     const t = tasks[S.task];
     if (!S.done[S.task]) {
       let r = {};
@@ -647,19 +671,21 @@
     customerSay(t.say, { mood: t.mood, actions: [{ label: 'Понял(а), делаю! 👍', onClick: customerLeave }] });
   }
   el.orderCard.addEventListener('click', () => {
+    if (backend.active) return backend.orderClick();
     if (S.final) return showFinal(true);
     if (S.task >= 0) summonCustomer();
   });
 
   function renderTopbar() {
+    if (backend.active) return backend.renderTopbar();
     el.starCount.textContent = S.stars;
     el.steps.innerHTML = tasks
       .map((t, i) => `<span class="${S.done[i] ? 'done' : i === S.task ? 'current' : ''}" title="${t.title}">${S.done[i] ? '✓' : i + 1}</span>`)
       .join('');
     const t = tasks[S.task];
     if (S.final) {
-      el.orderLabel.textContent = 'Готово';
-      el.orderText.textContent = 'Заказчик доволен! 🎉';
+      el.orderLabel.textContent = 'Этап 1 пройден';
+      el.orderText.textContent = 'Заказчик доволен! Дальше — бэкенд 🎉';
     } else if (!t) {
       el.orderLabel.textContent = 'Ждём';
       el.orderText.textContent = 'Скоро придёт первый заказ';
@@ -670,6 +696,32 @@
     el.orderCard.classList.toggle('done', Boolean(t && S.done[S.task]) || S.final);
   }
 
+  // ---------- Этап 2 ----------
+  const backend = FG.createBackend({
+    get S() {
+      return S;
+    },
+    save,
+    report,
+    customerSay,
+    customerLeave,
+    botSay,
+    toast,
+    burst,
+    addStars,
+    renderHTML,
+    openCert,
+    doc: () => doc,
+    isSolo: () => mode === 'solo',
+    closeCert: () => el.final.classList.remove('on'),
+    editorLock: (on) => editor.lock(on),
+    setChef(on) {
+      chef = on;
+      $('#bubbleName').textContent = on ? 'Шеф · Burger Bro' : 'Заказчик · Burger Bro';
+      setMood('neutral');
+    },
+  });
+
   // ---------- Финал ----------
   const SKILLS = [
     'Цвет кнопки — свойство <code>background</code>',
@@ -677,6 +729,12 @@
     'Размер шрифта — <code>font-size</code>',
     'Починка бага — <code>display: none</code>',
     'Свой дизайн сайта — цвет фона <code>body</code>',
+  ];
+  const SKILLS_B = [
+    'Новый товар в панели и <b>база данных</b>',
+    'Изменение цены на сервере',
+    'Снятие с продажи — поле <code>stock</code>',
+    'Запрос и ответ: заказ от клиента',
   ];
 
   let finalShown = false;
@@ -691,20 +749,45 @@
     if (!again && !finalShown) {
       finalShown = true;
       burst(60);
-      await customerSay(FG.finalSay, { mood: 'happy', actions: [{ label: 'Получить сертификат 🎓', onClick: openCert }] });
-      botSay('Вот так и работают фронтенд-разработчики: заказчик просит — ты меняешь HTML и CSS — сайт становится лучше. Сегодня ты сделал(а) это сам(а)! 🚀', 'good', [
-        { label: '🎓 Сертификат', primary: true, onClick: openCert },
-      ]);
+      await customerSay(FG.finalSay, { mood: 'happy', actions: [{ label: 'Этап 1 пройден! 🎉', onClick: openCert }] });
+      botSay('Вот так и работают фронтенд-разработчики: заказчик просит — ты меняешь HTML и CSS — сайт становится лучше. Сегодня ты сделал(а) это сам(а)! 🚀', 'good', stageOneActions());
       return;
     }
     openCert();
   }
 
+  // Без преподавателя на этап 2 ученик переходит сам.
+  function stageOneActions() {
+    const actions = [{ label: '🎉 Мой результат', primary: true, onClick: openCert }];
+    if (mode === 'solo') actions.push({ label: 'Дальше: этап 2 →', onClick: goStageTwo });
+    return actions;
+  }
+
+  function goStageTwo() {
+    S.stage = 2;
+    save();
+    backend.enter();
+    el.soloStart.hidden = false;
+  }
+
   function openCert() {
     customerLeave();
+    const b = backend.active ? S.b : null;
     $('#certName').textContent = S.name || 'Стажёр';
-    $('#certList').innerHTML = SKILLS.map((s, i) => `<li class="${S.done[i] ? '' : 'miss'}">${s}</li>`).join('');
-    $('#certStars').textContent = `⭐ ${S.stars} ${plural(S.stars, 'звезда', 'звезды', 'звёзд')}${S.bonusDone ? ` · доп. правок: ${S.bonusDone}` : ''}`;
+    $('#certKicker').textContent = b ? 'Сертификат стажёра' : 'Этап 1 из 2 пройден';
+    $('#certStamp').innerHTML = b ? 'ЗАКАЗ<br>СДАН' : 'ЭТАП<br>1 ✓';
+    $('#certRole').textContent = b ? 'Frontend и Backend · первый заказ «Burger Bro»' : 'Frontend-разработчик · первый заказ «Burger Bro»';
+    let items = SKILLS.map((s, i) => `<li class="${S.done[i] ? '' : 'miss'}">${s}</li>`);
+    if (b) {
+      items = [
+        `<li class="${S.done.filter(Boolean).length ? '' : 'miss'}">Фронтенд: HTML и CSS, заказов сделано ${S.done.filter(Boolean).length} из ${tasks.length}</li>`,
+        ...SKILLS_B.map((s, i) => `<li class="${b.done[i] ? '' : 'miss'}">${s}</li>`),
+        `<li class="${b.crashDone ? '' : 'miss'}">Починка сервера — ошибка в <code>server.py</code></li>`,
+      ];
+    }
+    $('#certList').innerHTML = items.join('');
+    const extra = S.bonusDone + (b ? b.bonusDone : 0);
+    $('#certStars').textContent = `⭐ ${S.stars} ${plural(S.stars, 'звезда', 'звезды', 'звёзд')}${extra ? ` · доп. правок: ${extra}` : ''}`;
     el.final.classList.add('on');
     burst(80, $('#confetti'));
   }
@@ -750,11 +833,16 @@
           id: S.id,
           done: tasks.map((_, i) => Boolean(S.done[i])),
           hints: tasks.map((_, i) => S.hints[i] || 0),
-          bonus: S.bonusDone,
+          bonus: S.bonusDone + (S.b ? S.b.bonusDone : 0),
           stars: S.stars,
           final: S.final,
+          doneB: FG.bTasks.map((_, i) => Boolean(S.b && S.b.done[i])),
+          hintsB: FG.bTasks.map((_, i) => (S.b && S.b.hints[i]) || 0),
+          crashHints: S.b ? S.b.crashHints : 0,
+          crashFixed: Boolean(S.b && S.b.crashDone),
+          finalB: Boolean(S.b && S.b.final),
         });
-        if (res.status === 404) rejoin();
+        if (res.status === 404) backToJoin();
       } catch {}
     }, 300);
   }
@@ -775,12 +863,45 @@
   }
 
   async function rejoin() {
-    const res = await post('/api/join', { id: S.id, name: S.name });
+    const res = await post('/api/join', { id: S.id, name: S.name, lessonId: S.lessonId });
+    if (res.status === 409) {
+      if (typedName) {
+        // Имя только что ввели, а прогресс остался от прошлого урока: начинаем заново.
+        resetProgress();
+        return rejoin();
+      }
+      return backToJoin();
+    }
     if (!res.ok) throw new Error('join failed');
     const data = await res.json();
     S.id = data.id;
     save();
     return data;
+  }
+
+  // Начался новый урок: следующий ученик должен ввести своё имя.
+  function backToJoin() {
+    if (es) es.close();
+    setSession(false);
+    S = blank();
+    save();
+    location.reload();
+    return new Promise(() => {});
+  }
+
+  function resetProgress() {
+    const { name } = S;
+    S = Object.assign(blank(), { name });
+    backend.exit();
+    finalShown = false;
+    el.final.classList.remove('on');
+    editor.setSilently('html', S.html);
+    editor.setSilently('css', S.css);
+    renderCSS();
+    renderHTML();
+    renderTopbar();
+    setTask(-1, { quiet: true });
+    save();
   }
 
   function setConn(state) {
@@ -795,15 +916,21 @@
     el.soloStart.hidden = false;
     el.lockText.textContent = 'Игра в автономном режиме: заказы будут приходить по очереди, когда ты выполнишь предыдущий.';
     if (reason) toast(reason);
+    if (backend.active) return backend.onSolo();
+    if (S.final) return botSay('Этап 1 пройден! Можно идти дальше.', 'good', stageOneActions());
     if (S.task >= 0 && S.done[S.task]) afterDone();
   }
-  el.soloStart.addEventListener('click', () => setTask(0));
+  el.soloStart.addEventListener('click', () => {
+    if (backend.active) backend.soloStart();
+    else setTask(0);
+  });
 
   async function connect() {
     if (location.protocol === 'file:') return goSolo();
     try {
       const data = await rejoin();
-      applyState(data.state);
+      typedName = false;
+      await applyState(data.state);
     } catch {
       return goSolo();
     }
@@ -813,7 +940,7 @@
     setInterval(() => {
       if (mode !== 'server' || !S.id) return;
       post('/api/beat', { id: S.id })
-        .then((res) => res.status === 404 && rejoin())
+        .then((res) => res.status === 404 && backToJoin())
         .catch(() => {});
     }, 15000);
   }
@@ -842,23 +969,8 @@
   async function applyState(st) {
     if (!st) return;
 
-    // Преподаватель начал новый урок — начинаем с чистого листа.
-    if (S.lessonId && st.lessonId !== S.lessonId) {
-      const { id, name } = S;
-      S = Object.assign(blank(), { id, name, lessonId: st.lessonId });
-      finalShown = false;
-      el.final.classList.remove('on');
-      editor.setSilently('html', S.html);
-      editor.setSilently('css', S.css);
-      renderCSS();
-      renderHTML();
-      lastServerTask = undefined;
-      lastPhase = undefined;
-      save();
-      try {
-        await rejoin();
-      } catch {}
-    }
+    // Преподаватель начал новый урок — снова экран с именем.
+    if (S.lessonId && st.lessonId !== S.lessonId) return backToJoin();
     S.lessonId = st.lessonId;
     save();
 
@@ -868,6 +980,22 @@
       renderCSS();
       el.skeleton.classList.toggle('on', cssOff);
       if (!cssOff) scheduleCheck();
+    }
+
+    if (st.stage === 2) {
+      S.stage = 2;
+      lastServerTask = undefined;
+      lastPhase = undefined;
+      el.soloStart.hidden = true;
+      backend.apply(st);
+      return;
+    }
+    if (backend.active) {
+      S.stage = 1;
+      backend.exit();
+      save();
+      lastServerTask = undefined;
+      lastPhase = undefined;
     }
 
     if (st.task !== lastServerTask || st.phase !== lastPhase) {
@@ -902,24 +1030,44 @@
     el.join.hidden = true;
     el.app.hidden = false;
     el.whoName.textContent = S.name;
-    renderTopbar();
     setConn('bad');
-    setTask(S.task, { quiet: true });
-    if (S.final) showFinal(true);
+    if (S.stage === 2) backend.enter();
+    else {
+      renderTopbar();
+      setTask(S.task, { quiet: true });
+      if (S.final) finalShown = true;
+    }
     connect().then(() => {
-      if (mode === 'solo' && S.task >= 0 && !S.done[S.task] && !S.final) summonCustomer();
+      if (mode === 'solo' && !backend.active && S.task >= 0 && !S.done[S.task] && !S.final) summonCustomer();
     });
   }
 
   $('#joinForm').addEventListener('submit', (e) => {
     e.preventDefault();
     const name = $('#nameInput').value.trim().slice(0, 30);
-    if (!name) return;
+    if (name.length < 2) {
+      $('#joinErr').textContent = 'Напиши своё имя, без него войти нельзя 🙂';
+      $('#nameInput').focus();
+      return;
+    }
+    // То же имя в том же браузере — продолжаем с того места (например, случайно закрыли вкладку).
+    if (S.name.toLowerCase() !== name.toLowerCase()) {
+      S = blank();
+      editor.setSilently('html', S.html);
+      editor.setSilently('css', S.css);
+      renderCSS();
+      renderHTML();
+    }
     S.name = name;
+    typedName = true;
+    setSession(true);
     save();
     enterApp();
   });
 
-  if (S.name) enterApp();
-  else setTimeout(() => $('#nameInput').focus(), 100);
+  if (S.name && hasSession()) enterApp();
+  else {
+    el.join.hidden = false;
+    setTimeout(() => $('#nameInput').focus(), 100);
+  }
 })();

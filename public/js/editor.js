@@ -95,6 +95,28 @@ window.FG = window.FG || {};
     return out;
   }
 
+  function hlPY(src) {
+    return src
+      .split('\n')
+      .map((line) => {
+        const m = line.match(/^(\s*)(#.*)$/);
+        if (m) return esc(m[1]) + span('com', m[2]);
+        return line
+          .split(/("(?:[^"\\]|\\.)*"?)/)
+          .map((part, i) => {
+            if (i % 2) return span('str', part);
+            return esc(part)
+              .replace(/\b(def|return|from|import)\b/g, '<span class="t-tag">$1</span>')
+              .replace(/\b(True|False)\b/g, '<span class="t-attr">$1</span>')
+              .replace(/\b(\d+)\b/g, '<span class="t-val">$1</span>')
+              .replace(/(@\w+[.\w]*)/g, '<span class="t-prop">$1</span>');
+          })
+          .join('');
+      })
+      .join('\n');
+  }
+  const HL = { css: hlCSS, html: hlHTML, py: hlPY };
+
   function exec(cmd, value) {
     try {
       return document.execCommand(cmd, false, value);
@@ -107,10 +129,11 @@ window.FG = window.FG || {};
     const panesEl = root.querySelector('.panes');
     const tabButtons = [...root.querySelectorAll('[data-tab]')];
     const panes = {};
-    let active = 'css';
+    const tabs = Object.keys(docs);
+    let active = tabs.includes('css') ? 'css' : tabs[0];
     let locked = false;
 
-    for (const tab of ['html', 'css']) {
+    for (const tab of tabs) {
       const pane = document.createElement('div');
       pane.className = 'pane';
       pane.dataset.pane = tab;
@@ -137,7 +160,7 @@ window.FG = window.FG || {};
 
       p.refresh = () => {
         const v = p.ta.value;
-        p.pre.innerHTML = (tab === 'css' ? hlCSS(v) : hlHTML(v)) + '\n\n';
+        p.pre.innerHTML = HL[tab](v) + '\n\n';
         const lines = v.split('\n').length;
         if (lines !== p.lines) {
           p.lines = lines;
@@ -258,7 +281,7 @@ window.FG = window.FG || {};
         p.refresh();
       },
 
-      reveal(tab, from, to = from) {
+      reveal(tab, from, to = from, atEnd = false) {
         const p = panes[tab];
         show(tab);
         const lh = lineHeight(p);
@@ -271,6 +294,7 @@ window.FG = window.FG || {};
         const lines = p.ta.value.split('\n');
         let pos = 0;
         for (let i = 0; i < from; i++) pos += lines[i].length + 1;
+        if (atEnd) pos += lines[from].length;
         p.ta.focus({ preventScroll: true });
         p.ta.setSelectionRange(pos, pos);
         clearTimeout(p.markTimer);

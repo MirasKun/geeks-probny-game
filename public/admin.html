@@ -48,7 +48,7 @@
           </div>
           <div class="timeline" id="timeline">
             <div class="seg seg-intro" style="--w: 7"><span>Рассказ</span><small>0–7</small></div>
-            <div class="seg seg-game" style="--w: 18"><span>Игра · 5 заказов</span><small>7–25</small></div>
+            <div class="seg seg-game" style="--w: 18"><span id="segGame">Игра · 5 заказов</span><small>7–25</small></div>
             <div class="seg seg-outro" style="--w: 5"><span>Итоги</span><small>25–30</small></div>
             <div class="needle" id="needle"></div>
           </div>
@@ -56,12 +56,17 @@
         </div>
 
         <div class="card now-card">
+          <div class="stage-tabs">
+            <button class="stab" data-stage="1" type="button">Этап 1 · Фронтенд</button>
+            <button class="stab" data-stage="2" type="button">Этап 2 · Бэкенд</button>
+          </div>
           <div class="kicker" id="phaseLabel">Сейчас</div>
           <div class="now-title" id="nowTitle">Лобби — ученики входят</div>
           <blockquote class="now-say" id="nowSay"></blockquote>
           <div class="now-answer" id="nowAnswer"></div>
 
           <button class="btn btn-big" id="nextBtn" type="button">🧑‍🍳 Выпустить заказчика</button>
+          <button class="btn btn-crash" id="crashBtn" type="button" hidden>🚨 Уронить сервер</button>
 
           <div class="ctrl">
             <button class="btn btn-ctrl" id="prevBtn" type="button">← Назад</button>
@@ -73,10 +78,41 @@
         </div>
 
         <div class="card notes">
-          <div class="notes-tabs">
+          <div class="notes-tabs" data-stage="1">
             <button class="ntab active" data-note="intro" type="button">Рассказ · 0–7</button>
             <button class="ntab" data-note="game" type="button">Игра · 7–25</button>
             <button class="ntab" data-note="outro" type="button">Итоги · 25–30</button>
+          </div>
+          <div class="notes-tabs" data-stage="2" hidden>
+            <button class="ntab active" data-note="b-intro" type="button">Рассказ · 0–7</button>
+            <button class="ntab" data-note="b-game" type="button">Игра · 7–25</button>
+            <button class="ntab" data-note="b-outro" type="button">Итоги · 25–30</button>
+          </div>
+          <div class="note" data-note="b-intro">
+            <ol>
+              <li><b>Вопрос классу.</b> «Вы сделали красивый сайт. Но где хранится цена чизбургера? Что будет, когда клиент нажмёт „Заказать“?»</li>
+              <li><b>Что такое бэкенд.</b> Вспомните ресторан: фронтенд — зал и меню, бэкенд — кухня и склад. Гость кухню не видит, но без неё ничего не получит.</li>
+              <li><b>Три слова.</b> Сервер — компьютер, который всегда включён. База данных — склад со всеми товарами. Запрос — записка от сайта серверу, ответ — то, что сервер присылает обратно.</li>
+              <li><b>Языки.</b> Бэкенд пишут на Python, JavaScript, Java и других языках. Сегодня в игре будет Python: он читается почти как обычный текст.</li>
+              <li>Хозяин надел колпак и стал шефом → <b>Выпустить шефа</b>.</li>
+            </ol>
+          </div>
+          <div class="note" data-note="b-game">
+            <ol>
+              <li>Ориентир — <b>3–4 минуты на заказ</b>. Первый заказ можно показать вместе: «Где тут добавляют товар?»</li>
+              <li>Обратите внимание на <b>журнал сервера</b> внизу панели: каждое действие там видно как запрос. Спросите: «Что сейчас произошло на кухне?»</li>
+              <li>После 3-го заказа, примерно на 18-й минуте, нажмите <b>🚨 Уронить сервер</b>. Можно изобразить панику вместе с шефом 😄</li>
+              <li>Главная мысль аварии: читать ошибку. Python пишет и что сломалось, и на какой строке, и даже подсказывает правильное слово.</li>
+              <li>Если почти все застряли — <b>💡 Подсказка всем</b>. Если времени совсем нет — кнопка <b>✅ Поднять сервер</b> вернёт всё обратно.</li>
+            </ol>
+          </div>
+          <div class="note" data-note="b-outro">
+            <ol>
+              <li>Когда большинство готово — <b>🎉 Финал для всех</b>. Шеф доволен, у всех сертификаты за оба этапа.</li>
+              <li>Спросите: «Сколько клиентов у вас ушло, пока сервер лежал?» Цифра есть у каждого, это весело сравнить.</li>
+              <li>Итог: фронтенд — то, что видит клиент, бэкенд — то, что работает за кулисами. Разработчик, который делает и то и другое, называется fullstack.</li>
+              <li>Что дальше на курсе: настоящие сайты, настоящие серверы, свои проекты и портфолио.</li>
+            </ol>
           </div>
           <div class="note active" data-note="intro">
             <ol>
@@ -158,6 +194,7 @@
   </div>
 
   <script src="js/tasks.js"></script>
+  <script src="js/backend-tasks.js"></script>
   <script src="js/admin.js"></script>
 </body>
 </html>

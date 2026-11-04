@@ -2,7 +2,7 @@
 
 (() => {
   const $ = (s) => document.querySelector(s);
-  const tasks = FG.tasks;
+  let tasks = FG.tasks; // заказы текущего этапа
   const PIN_KEY = 'geeks-frontend-pin';
   const LESSON_MIN = 30;
   const ONLINE_MS = 45000;
@@ -48,7 +48,7 @@
     // Ссылка вида /admin#pin=1234 входит сама, PIN вводить не нужно.
     const fromLink = new URLSearchParams(location.hash.slice(1)).get('pin');
     if (fromLink) {
-      history.replaceState(null, '', location.pathname);
+      window.history.replaceState(null, '', location.pathname);
       saved = fromLink;
     }
     if (saved && (await tryPin(saved))) start(saved);
@@ -104,52 +104,83 @@
 
   // ---------- Кнопки ----------
   const send = (type, extra) => api(type, pin, extra).catch(() => {});
-  $('#nextBtn').addEventListener('click', () => send('next'));
+  $('#nextBtn').addEventListener('click', () => {
+    if (st && st.stage !== 2 && st.phase === 'final') send('stage', { stage: 2 });
+    else send('next');
+  });
+  $('#crashBtn').addEventListener('click', () => send('crash'));
+  document.querySelectorAll('.stab').forEach((b) =>
+    b.addEventListener('click', () => {
+      const to = Number(b.dataset.stage);
+      if (!st || to === st.stage) return;
+      if (confirm(`Перейти на этап ${to} у всех учеников?`)) send('stage', { stage: to });
+    }),
+  );
   $('#prevBtn').addEventListener('click', () => send('prev'));
   $('#attentionBtn').addEventListener('click', () => send('attention'));
   $('#cssOffBtn').addEventListener('click', () => send('cssOff'));
   $('#hintAllBtn').addEventListener('click', () => send('hintAll'));
   $('#finalBtn').addEventListener('click', () => {
-    if (confirm('Показать финал всем ученикам? Заказчик скажет «Наконец-то!», и у всех откроется сертификат.')) send('final');
+    const text = st && st.stage === 2 ? 'Показать финал всем ученикам? Шеф поблагодарит, и у всех откроется сертификат.' : 'Закончить этап 1 у всех учеников? Заказчик скажет «Наконец-то, мне нравится!»';
+    if (confirm(text)) send('final');
   });
   $('#startTimer').addEventListener('click', () => send('start'));
   $('#resetBtn').addEventListener('click', () => {
     if (confirm('Начать новый урок?\nСписок учеников очистится, у учеников код сбросится к началу.\nВсе, кто играл, останутся во вкладке «История».')) send('reset');
   });
 
-  document.querySelectorAll('.ntab').forEach((b) =>
-    b.addEventListener('click', () => {
-      document.querySelectorAll('.ntab').forEach((x) => x.classList.toggle('active', x === b));
-      document.querySelectorAll('.note').forEach((n) => n.classList.toggle('active', n.dataset.note === b.dataset.note));
-    }),
-  );
+  function showNote(b) {
+    b.parentElement.querySelectorAll('.ntab').forEach((x) => x.classList.toggle('active', x === b));
+    document.querySelectorAll('.note').forEach((n) => n.classList.toggle('active', n.dataset.note === b.dataset.note));
+  }
+  document.querySelectorAll('.ntab').forEach((b) => b.addEventListener('click', () => showNote(b)));
 
   // ---------- Отрисовка ----------
   function render() {
     if (!st) return;
-    const t = tasks[st.task];
+    const stage2 = st.stage === 2;
+    tasks = stage2 ? FG.bTasks : FG.tasks;
+    const t = st.crash ? FG.bCrash : tasks[st.task];
     const isFinal = st.phase === 'final';
+    const hero = stage2 ? 'шефа' : 'заказчика';
 
-    $('#phaseLabel').textContent = isFinal ? 'Финал' : st.phase === 'lobby' ? 'Лобби' : `Заказ ${st.task + 1} из ${tasks.length}`;
-    $('#nowTitle').textContent = isFinal ? 'Заказчик доволен 🎉' : t ? t.title : 'Ученики входят, вы рассказываете';
-    $('#nowSay').textContent = isFinal ? FG.finalSay : t ? t.say : '';
-    $('#nowAnswer').textContent = !isFinal && t ? t.answer : '';
+    document.querySelectorAll('.stab').forEach((b) => b.classList.toggle('active', Number(b.dataset.stage) === st.stage));
+    document.querySelectorAll('.notes-tabs').forEach((n) => {
+      const on = Number(n.dataset.stage) === st.stage;
+      if (on && n.hidden) showNote(n.querySelector('.ntab.active'));
+      n.hidden = !on;
+    });
+    $('#segGame').textContent = stage2 ? 'Игра · 4 заказа и авария' : 'Игра · 5 заказов';
+
+    $('#phaseLabel').textContent = st.crash ? '🚨 Авария' : isFinal ? 'Финал' : st.phase === 'lobby' ? 'Лобби' : `Заказ ${st.task + 1} из ${tasks.length}`;
+    $('#nowTitle').textContent = !st.crash && isFinal ? (stage2 ? 'Шеф доволен 🎉' : 'Заказчик доволен 🎉') : t ? t.title : stage2 ? 'Вы рассказываете про бэкенд' : 'Ученики входят, вы рассказываете';
+    $('#nowSay').textContent = !st.crash && isFinal ? (stage2 ? FG.bFinalSay : FG.finalSay) : t ? t.say : '';
+    $('#nowAnswer').textContent = (st.crash || !isFinal) && t ? t.answer : '';
 
     const next = $('#nextBtn');
     next.classList.toggle('final', st.task >= tasks.length - 1 && !isFinal);
-    next.disabled = isFinal;
-    if (isFinal) next.textContent = '✓ Урок завершён';
-    else if (st.phase === 'lobby') next.textContent = '🧑‍🍳 Выпустить заказчика · заказ 1';
-    else if (st.task >= tasks.length - 1) next.textContent = '🎉 Финал: «Наконец-то, мне нравится!»';
+    next.classList.toggle('to-stage', !stage2 && isFinal);
+    next.disabled = stage2 && isFinal;
+    if (isFinal) next.textContent = stage2 ? '✓ Урок завершён' : '➡️ Перейти к этапу 2: бэкенд';
+    else if (st.phase === 'lobby') next.textContent = `🧑‍🍳 Выпустить ${hero} · заказ 1`;
+    else if (st.task >= tasks.length - 1) next.textContent = stage2 ? '🎉 Финал: шеф доволен' : '🎉 Финал этапа 1: «Наконец-то, мне нравится!»';
     else next.textContent = `🧑‍🍳 Следующий заказ · ${st.task + 2} из ${tasks.length}`;
+
+    const crash = $('#crashBtn');
+    crash.hidden = !stage2;
+    crash.disabled = st.phase !== 'task';
+    crash.classList.toggle('on', st.crash);
+    crash.textContent = st.crash ? '✅ Поднять сервер (отменить аварию)' : st.crashUsed ? '🚨 Уронить сервер ещё раз' : '🚨 Уронить сервер';
 
     $('#prevBtn').disabled = st.phase === 'lobby';
     $('#attentionBtn').classList.toggle('on', st.attention);
+    $('#cssOffBtn').hidden = stage2;
     $('#cssOffBtn').classList.toggle('on', st.cssOff);
     $('#cssOffBtn').textContent = st.cssOff ? '🎨 Включить CSS обратно' : '🦴 Выключить CSS у всех';
     $('#hintAllBtn').disabled = st.phase !== 'task' || (st.hintAll || 0) >= 3;
     $('#hintAllBtn').textContent = st.phase === 'task' ? `💡 Подсказка всем · ${Math.min(3, (st.hintAll || 0) + 1)}/3` : '💡 Подсказка всем';
     $('#finalBtn').disabled = isFinal;
+    $('#finalBtn').textContent = stage2 ? '🎉 Финал для всех' : '🎉 Закончить этап 1';
     $('#startTimer').textContent = st.startedAt ? '⟲ Сбросить таймер' : '▶ Запустить таймер';
 
     renderStudents();
@@ -160,24 +191,30 @@
     const now = Date.now() + clockOffset;
     const list = st.students.map((s) => ({ ...s, online: now - (s.lastSeen || 0) < ONLINE_MS }));
     const cur = st.task;
+    const stage2 = st.stage === 2;
+    const doneOf = (s) => (stage2 ? s.doneB : s.done) || [];
+    const hintsOf = (s) => (stage2 ? s.hintsB : s.hints) || [];
     const status = (s) => {
-      if (st.phase === 'final' || s.final) return 'done';
+      if (st.phase === 'final' || (stage2 ? s.finalB : s.final)) return 'done';
+      if (st.crash) return s.crashFixed ? 'done' : (s.crashHints || 0) >= 2 ? 'help' : 'work';
       if (cur < 0) return 'idle';
-      if (s.done[cur]) return 'done';
-      if ((s.hints[cur] || 0) >= 2) return 'help';
+      if (doneOf(s)[cur]) return 'done';
+      if ((hintsOf(s)[cur] || 0) >= 2) return 'help';
       return 'work';
     };
     const order = { help: 0, work: 1, idle: 2, done: 3 };
     list.sort((a, b) => (a.online === b.online ? 0 : a.online ? -1 : 1) || order[status(a)] - order[status(b)] || a.name.localeCompare(b.name, 'ru'));
 
     const online = list.filter((s) => s.online).length;
-    const doneCount = cur >= 0 ? st.students.filter((s) => s.done[cur]).length : 0;
+    const doneCount = st.crash ? st.students.filter((s) => s.crashFixed).length : cur >= 0 ? st.students.filter((s) => doneOf(s)[cur]).length : 0;
     $('#summary').textContent = !list.length
       ? 'Пока никого'
-      : cur >= 0
-        ? `Сделали заказ ${cur + 1}: ${doneCount} из ${list.length} · онлайн ${online}`
-        : `Вошли: ${list.length} · онлайн ${online}`;
-    $('#progressFill').style.width = list.length && cur >= 0 ? `${(doneCount / list.length) * 100}%` : '0%';
+      : st.crash
+        ? `Починили сервер: ${doneCount} из ${list.length} · онлайн ${online}`
+        : cur >= 0
+          ? `Сделали заказ ${cur + 1}: ${doneCount} из ${list.length} · онлайн ${online}`
+          : `Вошли: ${list.length} · онлайн ${online}`;
+    $('#progressFill').style.width = list.length && (cur >= 0 || st.crash) ? `${(doneCount / list.length) * 100}%` : '0%';
     $('#empty').hidden = list.length > 0;
 
     const box = $('#students');
@@ -186,10 +223,11 @@
       const card = document.createElement('div');
       const stt = status(s);
       card.className = `st ${stt === 'done' ? 'done' : stt === 'help' ? 'help' : ''} ${s.online ? '' : 'offline'}`;
-      const hints = (s.hints || []).reduce((a, b) => a + b, 0);
-      const cells = tasks
-        .map((_, i) => `<i class="${s.done[i] ? 'd' : i === cur ? 'c' : ''}">${s.done[i] ? '✓' : i + 1}</i>`)
+      const hints = hintsOf(s).reduce((a, b) => a + b, 0) + (stage2 ? s.crashHints || 0 : 0);
+      let cells = tasks
+        .map((_, i) => `<i class="${doneOf(s)[i] ? 'd' : i === cur ? 'c' : ''}">${doneOf(s)[i] ? '✓' : i + 1}</i>`)
         .join('');
+      if (stage2) cells += `<i class="${s.crashFixed ? 'd' : st.crash ? 'c' : ''}">${s.crashFixed ? '✓' : '🚨'}</i>`;
       card.innerHTML = `
         <button class="st-kick" title="Убрать из списка">×</button>
         <div class="st-name"><span class="conn ${s.online ? 'ok' : ''}"></span><span></span></div>
@@ -223,7 +261,8 @@
     needle.style.left = `calc(${Math.min(100, (min / LESSON_MIN) * 100)}% - 1px)`;
 
     let tip;
-    if (ended) tip = `Урок завершён за <b>${Math.round(min)} мин</b>. Перед следующим уроком нажмите «🔄 Новый урок».`;
+    if (ended) tip = st.stage === 2 ? `Этап 2 завершён за <b>${Math.round(min)} мин</b>. Перед следующим уроком нажмите «🔄 Новый урок».` : `Этап 1 завершён за <b>${Math.round(min)} мин</b>. Когда будете готовы, переходите к этапу 2.`;
+    else if (st.crash) tip = 'Сервер упал у всех. Следите, кто уже починил, и при необходимости нажмите «💡 Подсказка всем».';
     else if (min < PLAN.gameStart && st.phase !== 'lobby') tip = 'Игра началась раньше плана — значит, на заказы будет больше времени 👍';
     else if (min < PLAN.gameStart) tip =`Сейчас по плану — <b>рассказ</b>. Через ${Math.ceil(PLAN.gameStart - min)} мин выпускайте заказчика.`;
     else if (min < PLAN.gameEnd) {
@@ -232,7 +271,8 @@
       const actual = st.phase === 'lobby' ? -1 : st.phase === 'final' ? tasks.length : st.task;
       const diff = actual - planned;
       tip = `По плану сейчас <b>заказ ${planned + 1}</b>. ` + (diff < 0 ? 'Вы немного отстаёте — можно переходить дальше.' : diff > 0 ? 'Вы идёте с опережением 👍' : 'Идёте точно по плану 👌');
-    } else if (min < LESSON_MIN) tip = 'Пора к <b>итогам</b>: нажмите «🎉 Финал для всех» и подведите итоги.';
+      if (st.stage === 2 && !st.crashUsed && min >= 17) tip += ' Самое время для <b>🚨 аварии</b>!';
+    } else if (min < LESSON_MIN) tip = st.stage === 2 ? 'Пора к <b>итогам</b>: нажмите «🎉 Финал для всех» и подведите итоги.' : 'Пора к <b>итогам</b> этапа: нажмите «🎉 Закончить этап 1».';
     else tip = '<b>Время урока вышло.</b>';
     $('#pace').innerHTML = tip;
   }
@@ -242,7 +282,14 @@
   const pad = (n) => String(n).padStart(2, '0');
   const dayOf = (t) => new Date(t).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric', weekday: 'short' });
   const timeOf = (t) => { const d = new Date(t); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
-  const result = (h) => (h.final || h.done >= h.total ? `✓ прошёл · ${h.done}/${h.total}` : `${h.done}/${h.total} заказов`);
+  // Новые записи хранят оба этапа, старые — только фронтенд.
+  const passed = (h) => (h.totalB ? h.finalB : h.final || h.done >= h.total);
+  const result = (h) => {
+    const front = `Фронтенд ${h.done}/${h.total}`;
+    if (!h.totalB) return passed(h) ? `✓ прошёл · ${front}` : front;
+    const back = `Бэкенд ${h.doneB}/${h.totalB}${h.crashFixed ? ' · 🚨 починил' : ''}`;
+    return `${h.finalB ? '✓ ' : ''}${front} · ${back}`;
+  };
 
   document.querySelectorAll('.vtab').forEach((b) =>
     b.addEventListener('click', () => {
@@ -266,8 +313,8 @@
   function renderHistory() {
     const q = $('#histSearch').value.trim().toLowerCase();
     const list = history.filter((h) => !q || h.name.toLowerCase().includes(q));
-    const passed = history.filter((h) => h.final || h.done >= h.total).length;
-    $('#histSummary').textContent = history.length ? `Играли: ${history.length} · прошли до конца: ${passed}` : 'Пока никого';
+    const count = history.filter(passed).length;
+    $('#histSummary').textContent = history.length ? `Играли: ${history.length} · прошли оба этапа: ${count}` : 'Пока никого';
     $('#histEmpty').hidden = history.length > 0;
 
     const box = $('#hist');
@@ -285,7 +332,7 @@
         box.appendChild(group);
       }
       const row = document.createElement('div');
-      row.className = `hist-row ${h.final || h.done >= h.total ? 'ok' : ''}`;
+      row.className = `hist-row ${passed(h) ? 'ok' : ''}`;
       row.innerHTML = `<span class="hist-time">${timeOf(h.date)}</span><span class="hist-name"></span><span class="hist-res"></span><button class="hist-del" title="Удалить из истории">×</button>`;
       row.querySelector('.hist-name').textContent = h.name;
       row.querySelector('.hist-res').textContent = result(h);
@@ -302,10 +349,10 @@
   // CSV с «;» и BOM — Excel сразу открывает русские буквы и колонки.
   $('#histCsv').addEventListener('click', () => {
     const cell = (v) => `"${String(v).replace(/"/g, '""')}"`;
-    const rows = [['Дата', 'Время', 'Имя', 'Заказов сделано', 'Прошёл до конца']];
+    const rows = [['Дата', 'Время', 'Имя', 'Фронтенд', 'Бэкенд', 'Починил сервер', 'Прошёл до конца']];
     for (const h of history) {
       const d = new Date(h.date);
-      rows.push([`${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`, timeOf(h.date), h.name, `${h.done} из ${h.total}`, h.final || h.done >= h.total ? 'да' : 'нет']);
+      rows.push([`${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`, timeOf(h.date), h.name, `${h.done} из ${h.total}`, h.totalB ? `${h.doneB} из ${h.totalB}` : '', h.crashFixed ? 'да' : 'нет', passed(h) ? 'да' : 'нет']);
     }
     const blob = new Blob(['\ufeff' + rows.map((r) => r.map(cell).join(';')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a');

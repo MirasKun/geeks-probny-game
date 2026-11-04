@@ -33,6 +33,15 @@ window.FG = window.FG || {};
     '..KKrrrrrrrrKKK.',
     '...KSSSSSSSSK...',
   ];
+  // Колпак шефа — на этапе «Бэкенд» хозяин уходит на кухню.
+  const CHEF_HEAD = [
+    '....KKKKKKKK....',
+    '...KWWWWWWWWK...',
+    '...KWWWWWWWWK...',
+    '....KWWWWWWK....',
+    '....KwwwwwwK....',
+    '...KSSSSSSSSK...',
+  ];
   const FACE = {
     neutral: ['...KSSSSSSSSK...', '...KSEESSEESK...', '...KSSSSSSSSK...', '...KSHHHHHHSK...', '...KSSSMMSSSK...'],
     happy: ['...KSSSSSSSSK...', '...KSEESSEESK...', '...KpSSSSSSpK...', '...KSHHHHHHSK...', '...KSMMMMMMSK...'],
@@ -83,8 +92,8 @@ window.FG = window.FG || {};
   }
 
   FG.pixel = {
-    customer(mood = 'neutral') {
-      const top = [...HEAD, ...(FACE[mood] || FACE.neutral), ...BODY];
+    customer(mood = 'neutral', chef = false) {
+      const top = [...(chef ? CHEF_HEAD : HEAD), ...(FACE[mood] || FACE.neutral), ...BODY];
       const h = top.length + 3;
       return `<svg viewBox="0 0 16 ${h}" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">
         ${rects(top)}

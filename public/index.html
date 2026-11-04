@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Студия фронтенда · GEEKS</title>
+  <title>Студия разработки · GEEKS</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍔</text></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -13,18 +13,19 @@
 <body>
 
   <!-- Экран входа -->
-  <div class="join" id="join">
+  <div class="join" id="join" hidden>
     <div class="join-card">
       <div class="join-sprite" id="joinSprite"></div>
       <div class="brand"><span class="brand-word">GEEKS</span><span class="brand-badge">студия</span></div>
       <h1>Сегодня ты — <mark>фронтенд-разработчик</mark></h1>
       <p>Тебе пришёл первый заказ от настоящей бургерной. Заказчик будет просить правки, а ты — менять код сайта.</p>
-      <form id="joinForm" autocomplete="off">
+      <form id="joinForm" autocomplete="off" novalidate>
         <label for="nameInput">Как тебя зовут?</label>
         <div class="join-row">
-          <input id="nameInput" maxlength="30" placeholder="Например, Айбек" required>
+          <input id="nameInput" maxlength="30" placeholder="Например, Айбек" autocomplete="off">
           <button class="btn btn-primary" type="submit">Войти в студию →</button>
         </div>
+        <div class="join-err" id="joinErr"></div>
       </form>
     </div>
   </div>
@@ -60,6 +61,12 @@
           <div class="frame-wrap">
             <iframe id="site" title="Сайт бургерной" sandbox="allow-same-origin"></iframe>
             <div class="skeleton-banner" id="skeletonBanner">🦴 CSS выключен. Это голый HTML — «скелет» сайта без «одежды».</div>
+            <div class="down-page" id="downPage" hidden>
+              <div class="down-code">500</div>
+              <h2>Internal Server Error</h2>
+              <p>Сервер не отвечает. Клиенты видят это вместо сайта.</p>
+              <div class="down-lost">Ушло клиентов: <b id="downLost">0</b> 😱</div>
+            </div>
           </div>
         </div>
 
@@ -69,7 +76,7 @@
         <!-- Заказчик -->
         <div class="customer" id="customer">
           <div class="bubble" id="bubble">
-            <div class="bubble-name">Заказчик · Burger Bro</div>
+            <div class="bubble-name" id="bubbleName">Заказчик · Burger Bro</div>
             <div class="bubble-text" id="bubbleText"></div>
             <div class="bubble-actions" id="bubbleActions"></div>
           </div>
@@ -102,12 +109,77 @@
           </div>
         </div>
 
+        <!-- Этап 2: панель магазина и код сервера -->
+        <div class="backend" id="backend">
+          <div class="win-bar b-bar">
+            <span class="dots"><i></i><i></i><i></i></span>
+            <div class="tabs">
+              <button class="tab" data-btab="products" type="button"><b>🛒 Товары</b><small>панель управления</small></button>
+              <button class="tab" data-btab="orders" type="button"><b>📥 Заказы <em id="bOrderCount" hidden></em></b><small>от клиентов</small></button>
+              <button class="tab" data-btab="code" type="button"><b>🐍 server.py</b><small>Python · кухня</small></button>
+            </div>
+          </div>
+
+          <div class="b-body">
+            <div class="b-pane" data-bpane="products" id="bProducts">
+              <div class="b-head">
+                <button class="btn btn-primary" id="bAdd" type="button">➕ Добавить товар</button>
+                <button class="btn btn-ghost" id="bUndo" type="button">↶ Отменить</button>
+              </div>
+              <div class="b-list" id="bList"></div>
+
+              <form class="b-form" id="bForm" hidden autocomplete="off" novalidate>
+                <div class="b-form-title" id="bFormTitle">Новый товар</div>
+                <div class="b-form-row">
+                  <div class="b-drop" id="bDrop"></div>
+                  <div class="b-fields">
+                    <label>Название<input id="bName" maxlength="30" placeholder="Например, Шаурма"></label>
+                    <label>Цена, сом<input id="bPrice" inputmode="numeric" maxlength="6" placeholder="Например, 200"></label>
+                  </div>
+                </div>
+                <div class="b-form-err" id="bFormErr"></div>
+                <div class="b-form-btns">
+                  <button class="btn btn-primary" type="submit">Сохранить</button>
+                  <button class="btn btn-ghost" id="bCancel" type="button">Отмена</button>
+                </div>
+              </form>
+              <div class="b-down-note">⛔ Панель не может достучаться до сервера.<br>Сначала почини его во вкладке <b>🐍 server.py</b>.</div>
+            </div>
+
+            <div class="b-pane" data-bpane="orders" id="bOrdersPane" hidden>
+              <div class="b-list" id="bOrders"></div>
+              <div class="b-down-note">⛔ Панель не может достучаться до сервера.<br>Сначала почини его во вкладке <b>🐍 server.py</b>.</div>
+            </div>
+
+            <div class="b-pane b-code" data-bpane="code" id="bCode" hidden>
+              <div class="panes"></div>
+              <div class="b-code-tools">
+                <span class="b-code-note" id="bCodeNote">Пока сервер работает, код только для чтения.</span>
+                <div class="chips" id="bCodeChips"></div>
+                <div class="tool-btns">
+                  <button class="btn btn-ghost" id="bCodeUndo" type="button">↶ Отменить</button>
+                  <button class="btn btn-ghost" id="bCodeReset" type="button">⟲ Сбросить</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="b-log">
+            <div class="b-log-title">Журнал сервера</div>
+            <div class="b-log-lines" id="bLogLines"></div>
+          </div>
+        </div>
+
         <div class="assistant" id="assistant">
           <div class="bot" id="bot"></div>
           <div class="assistant-body">
             <div class="assistant-name">Бит · ассистент</div>
             <div class="assistant-text" id="assistantText"></div>
             <div class="assistant-actions" id="assistantActions"></div>
+            <div class="b-shelf-wrap" id="bShelfWrap" hidden>
+              <div class="b-shelf-title">Полка с картинками: перетащи на серый квадрат</div>
+              <div class="b-shelf" id="bShelf"></div>
+            </div>
           </div>
           <button class="btn btn-hint" id="hintBtn" type="button">💡 Подсказка</button>
         </div>
@@ -115,7 +187,7 @@
         <div class="editor-lock" id="editorLock">
           <div class="lock-card">
             <div class="lock-emoji">⏳</div>
-            <b>Ждём заказчика…</b>
+            <b id="lockTitle">Ждём заказчика…</b>
             <p id="lockText">Пока посмотри на сайт бургерной слева. Его сделал фронтенд-разработчик — человек, который создаёт то, что ты видишь и нажимаешь на сайтах.</p>
             <button class="btn btn-primary" id="soloStart" type="button" hidden>Начать игру ▶</button>
           </div>
@@ -138,11 +210,11 @@
       <div class="cert">
         <div class="cert-top">
           <div class="brand"><span class="brand-word">GEEKS</span><span class="brand-badge">студия</span></div>
-          <span class="cert-stamp">ЗАКАЗ<br>СДАН</span>
+          <span class="cert-stamp" id="certStamp">ЗАКАЗ<br>СДАН</span>
         </div>
-        <div class="cert-kicker">Сертификат стажёра</div>
+        <div class="cert-kicker" id="certKicker">Сертификат стажёра</div>
         <div class="cert-name" id="certName"></div>
-        <div class="cert-role">Frontend-разработчик · первый заказ «Burger Bro»</div>
+        <div class="cert-role" id="certRole">Frontend-разработчик · первый заказ «Burger Bro»</div>
         <ul class="cert-list" id="certList"></ul>
         <div class="cert-stars" id="certStars"></div>
         <div class="cert-actions">
@@ -158,6 +230,8 @@
   <script src="js/tasks.js"></script>
   <script src="js/pixel.js"></script>
   <script src="js/editor.js"></script>
+  <script src="js/backend-tasks.js"></script>
+  <script src="js/backend.js"></script>
   <script src="js/student.js"></script>
 </body>
 </html>

@@ -171,3 +171,12 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .hist-row.ok .hist-res { color: var(--green); }
 .hist-del { border: 0; background: transparent; color: var(--muted); font-size: 16px; cursor: pointer; padding: 2px; opacity: 0.5; }
 .hist-del:hover { opacity: 1; color: var(--red); }
+
+/* ---------- Этапы урока ---------- */
+.stage-tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+.stab { flex: 1; background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; font: inherit; font-size: 13px; font-weight: 800; color: var(--muted); cursor: pointer; }
+.stab.active { background: rgba(255, 231, 67, 0.14); border-color: var(--yellow); color: var(--yellow); }
+.btn-big.to-stage { background: var(--blue); box-shadow: 0 6px 0 #5d82d6; }
+.btn-crash { width: 100%; margin-top: 12px; padding: 13px 14px; background: var(--red); color: #fff; font-size: 15px; font-weight: 800; box-shadow: 0 4px 0 #b8322b; }
+.btn-crash.on { background: var(--green); color: #0d3320; box-shadow: 0 4px 0 #22a862; }
+.btn-crash:disabled { opacity: 0.4; cursor: not-allowed; }
