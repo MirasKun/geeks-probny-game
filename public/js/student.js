@@ -404,7 +404,7 @@
     if (token !== sayToken) return;
     setMood(mood);
     el.customer.classList.add('talking');
-    FG.voice.say(text, mood, Math.min(3500, text.length * 14));
+    FG.voice.say(text.length * 14);
 
     // Печатаем текст по буквам. Клик по облачку — показать сразу.
     let i = 0;
