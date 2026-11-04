@@ -658,8 +658,7 @@
       return;
     }
     assistantMode = 'task';
-    const where = t.tab === 'html' ? 'Тексты живут в <b>HTML</b>.' : 'Подумай, где в коде может быть то, что просит заказчик.';
-    botSay(`Новый заказ! ${where} Попробуй сам(а), а если застрянешь — жми <b>💡 Подсказка</b>.`);
+    botSay('Новый заказ! Попробуй сам(а), а если застрянешь — жми <b>💡 Подсказка</b>.');
     if (changed && !quiet) summonCustomer();
     armNudge();
     scheduleCheck();
@@ -936,26 +935,39 @@
     }
     mode = 'server';
     openStream();
-    // Сигнал «я здесь» для пульта преподавателя.
+    // Сигнал «я здесь» для пульта. Заодно замечает пропавший интернет, даже если поток молчит.
     setInterval(() => {
-      if (mode !== 'server' || !S.id) return;
+      if (!S.id) return;
       post('/api/beat', { id: S.id })
-        .then((res) => res.status === 404 && backToJoin())
-        .catch(() => {});
+        .then((res) => {
+          if (res.status === 404) return backToJoin();
+          if (res.ok) serverAlive();
+        })
+        .catch(serverLost);
     }, 15000);
+  }
+
+  function serverAlive() {
+    clearTimeout(offlineTimer);
+    offlineTimer = null;
+    if (mode === 'solo') {
+      mode = 'server';
+      el.soloStart.hidden = true;
+      report();
+    }
+    setConn('ok');
+    if (es && es.readyState === EventSource.CLOSED) openStream();
+  }
+
+  function serverLost() {
+    setConn('bad');
+    if (!offlineTimer) offlineTimer = setTimeout(() => goSolo('Связь с преподавателем пропала — продолжай сам(а)!'), 20000);
   }
 
   function openStream() {
     es = new EventSource(`/api/stream?id=${encodeURIComponent(S.id)}`);
     es.addEventListener('state', (e) => {
-      clearTimeout(offlineTimer);
-      offlineTimer = null;
-      if (mode === 'solo') {
-        mode = 'server';
-        el.soloStart.hidden = true;
-        report();
-      }
-      setConn('ok');
+      serverAlive();
       applyState(JSON.parse(e.data));
     });
     es.addEventListener('open', () => setConn('ok'));

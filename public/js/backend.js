@@ -214,6 +214,7 @@ FG.createBackend = function (G) {
     if (form.pic) setFormPic(form.pic);
     $('#bForm').hidden = false;
     $('#bShelfWrap').hidden = false;
+    $('#editor').classList.add('form-open');
     $('#bName').focus();
     if (mode === 'task' && state().task === 0) G.botSay('Смотри, вот картинки на полке. Возьми нужную мышкой и <b>перетащи на серый квадрат</b> в форме 👆');
   }
@@ -222,6 +223,7 @@ FG.createBackend = function (G) {
     form = null;
     $('#bForm').hidden = true;
     $('#bShelfWrap').hidden = true;
+    $('#editor').classList.remove('form-open');
   }
 
   $('#bAdd').addEventListener('click', () => openForm(null));
@@ -461,7 +463,7 @@ FG.createBackend = function (G) {
     mode = 'crash';
     lastNear = '';
     clearNudge();
-    G.botSay('🚨 Сервер упал, и сайт не открывается! Посмотри на красный текст в <b>журнале сервера</b> внизу: там написано, что сломалось.');
+    G.botSay('🚨 Сервер упал! Читай красный текст в <b>журнале сервера</b>: там написано, что сломалось.');
     updateHint();
     G.save();
     if (!seen) say();
