@@ -11,6 +11,7 @@
   const blank = () => ({
     id: null,
     name: '',
+    phone: '',
     lessonId: null,
     html: FG.starter.html,
     css: FG.starter.css,
@@ -18,6 +19,7 @@
     done: [],
     hints: [],
     stars: 0,
+    base: null, // код на момент начала заказа: с ним сравниваем, что ученик изменил
     bonusIdx: 0,
     bonusDone: 0,
     final: false,
@@ -162,7 +164,7 @@
     b.title = `Вставить цвет ${name}`;
     b.innerHTML = `<i></i>${name}`;
     b.addEventListener('mousedown', (e) => e.preventDefault());
-    b.addEventListener('click', () => editor.insert(name, true));
+    b.addEventListener('click', () => insertWord(name, true));
     palette.appendChild(b);
   }
   function renderChips(tab) {
@@ -176,7 +178,7 @@
       b.textContent = word;
       b.title = 'Вставить в код';
       b.addEventListener('mousedown', (e) => e.preventDefault());
-      b.addEventListener('click', () => editor.insert(word, tab === 'css' && word !== 'px'));
+      b.addEventListener('click', () => insertWord(word, tab === 'css' && word !== 'px'));
       box.appendChild(b);
     }
   }
@@ -190,6 +192,7 @@
   $('#resetBtn').addEventListener('click', () => {
     const tab = editor.active;
     if (!confirm(`Вернуть весь код во вкладке ${tab.toUpperCase()} к самому началу?\nВсе изменения в этой вкладке пропадут (но кнопка «Отменить» сможет их вернуть).`)) return;
+    if (S.base) S.base[tab] = FG.starter[tab];
     editor.replaceAll(tab, FG.starter[tab]);
   });
 
@@ -279,18 +282,22 @@
     });
   }
 
-  function findCssRule(node) {
+  function cssRange(sel) {
     const lines = S.css.split('\n');
+    const re = new RegExp(`(^|[\\s,>])${sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=[\\s,{:.>]|$)`);
+    const start = lines.findIndex((l) => l.includes('{') && re.test(l.split('{')[0]));
+    if (start < 0) return null;
+    let end = start;
+    while (end < lines.length - 1 && !lines[end].includes('}')) end++;
+    return { sel, start, end };
+  }
+
+  function findCssRule(node) {
     const { tag } = label(node);
     const candidates = [...[...node.classList].filter((c) => c !== '__lupa').map((c) => `.${c}`), tag];
     for (const sel of candidates) {
-      const re = new RegExp(`(^|[\\s,>])${sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=[\\s,{:.>]|$)`);
-      const start = lines.findIndex((l) => l.includes('{') && re.test(l.split('{')[0]));
-      if (start >= 0) {
-        let end = start;
-        while (end < lines.length - 1 && !lines[end].includes('}')) end++;
-        return { sel, start, end };
-      }
+      const range = cssRange(sel);
+      if (range) return range;
     }
     return null;
   }
@@ -392,10 +399,12 @@
     el.customer.classList.remove('talking');
     el.bubbleActions.innerHTML = '';
     setMood('neutral');
+    FG.voice.stop();
     await walk(true);
     if (token !== sayToken) return;
     setMood(mood);
     el.customer.classList.add('talking');
+    FG.voice.say(text, mood, Math.min(3500, text.length * 14));
 
     // Печатаем текст по буквам. Клик по облачку — показать сразу.
     let i = 0;
@@ -423,13 +432,19 @@
       el.bubbleText.append(text.slice(0, i));
       el.bubbleText.insertAdjacentHTML('beforeend', '<span class="caret"></span>');
     }, 28);
-    $('#bubble').onclick = () => i < text.length && ((i = text.length), finish());
+    $('#bubble').onclick = () => {
+      if (i >= text.length) return;
+      i = text.length;
+      FG.voice.stop();
+      finish();
+    };
     if (autoHide) customerHideTimer = setTimeout(customerLeave, autoHide);
   }
 
   async function customerLeave() {
     const token = ++sayToken;
     clearInterval(typeTimer);
+    FG.voice.stop();
     el.customer.classList.remove('talking');
     await new Promise((r) => setTimeout(r, 250));
     if (token !== sayToken) return;
@@ -444,6 +459,7 @@
   function botSay(html, kind = '', actions = []) {
     el.assistantText.className = `assistant-text ${kind}`;
     el.assistantText.innerHTML = html;
+    el.assistantText.scrollTop = 0;
     el.assistantActions.innerHTML = '';
     for (const a of actions) {
       const b = document.createElement('button');
@@ -473,10 +489,88 @@
     const t = tasks[S.task];
     botSay(`<span class="hint-step">${level + 1}/3</span>${t.hints[level]}`);
     assistantMode = 'task';
-    if (level === 0) {
-      if (t.tab === 'html' && editor.active !== 'html') document.querySelector('.tab[data-tab="html"]').classList.add('attn');
-      if (t.tab === 'css' && S.task === 0) el.lupaBtn.classList.add('pulse');
+    goToTarget(true);
+    paintMarks();
+  }
+
+  // ---------- Подсветка кода ----------
+  let bonusHinted = false;
+
+  function activeItem() {
+    if (S.task < 0 || S.final) return null;
+    if (!S.done[S.task]) return tasks[S.task];
+    return assistantMode === 'bonus' ? bonuses[S.bonusIdx] : null;
+  }
+
+  // Где в коде нужное место. Ищем каждый раз заново: строки могли сдвинуться.
+  function targetOf(item) {
+    const m = item && item.mark;
+    if (!m) return null;
+    const lines = S[m.tab].split('\n');
+    if (m.find) {
+      const line = lines.findIndex((l) => m.find.test(l));
+      return line < 0 ? null : { tab: m.tab, from: line, to: line, line };
     }
+    const range = cssRange(m.block);
+    if (!range) return null;
+    let line = null;
+    for (let i = range.start; i <= range.end; i++) if (m.line.test(lines[i])) line = i;
+    return { tab: m.tab, from: range.start, to: range.end, line };
+  }
+
+  // Рисует подсветку и сообщает, что ученик изменил не так.
+  function paintMarks() {
+    const item = activeItem();
+    const isTask = Boolean(item) && !S.done[S.task];
+    const marks = { html: [], css: [] };
+    const found = { target: false, other: false, cyrillic: false };
+    const t = targetOf(item);
+    const hinted = isTask ? (S.hints[S.task] || 0) > 0 : bonusHinted;
+    if (t) {
+      marks[t.tab].push({ from: t.from, to: t.to, kind: 'soft' });
+      if (hinted && t.line !== null) marks[t.tab].push({ from: t.line, to: t.line, kind: 'hint' });
+    }
+    if (isTask && S.base) {
+      for (const tab of ['html', 'css']) {
+        const lines = S[tab].split('\n');
+        for (const line of FG.changedLines(S.base[tab], S[tab])) {
+          marks[tab].push({ from: line, to: line, kind: 'bad' });
+          if (t && t.tab === tab && t.line === line) found.target = true;
+          else found.other = true;
+          if (tab === 'css' && /[а-яё]/i.test((lines[line] || '').replace(/\/\*.*?\*\//g, ''))) found.cyrillic = true;
+        }
+      }
+    }
+    editor.setMarks('html', marks.html);
+    editor.setMarks('css', marks.css);
+    return found;
+  }
+
+  // Показать нужное место в коде. select — ещё и выделить слово, которое надо заменить.
+  function goToTarget(select) {
+    const item = activeItem();
+    const t = targetOf(item);
+    if (!t) return;
+    const line = t.line === null ? t.from : t.line;
+    editor.show(t.tab);
+    editor.scrollToLine(t.tab, line);
+    if (select && t.line !== null) selectValue(item, t);
+  }
+
+  function selectValue(item, t) {
+    const text = S[t.tab].split('\n')[t.line];
+    const m = item.mark.block ? text.match(/^(.*?:\s*)(.*?)\s*;?\s*$/) : null;
+    if (m && m[2]) editor.selectInLine(t.tab, t.line, m[1].length, m[1].length + m[2].length);
+  }
+
+  // Палитра и кнопки-слова: после подсказки слово ложится точно в нужную строчку,
+  // даже если курсор случайно ушёл в другое место.
+  function insertWord(word, smart) {
+    const item = activeItem();
+    const t = targetOf(item);
+    const hinted = item && !S.done[S.task] && (S.hints[S.task] || 0) > 0;
+    if (hinted && smart && t && t.line !== null && t.tab === editor.active) selectValue(item, t);
+    editor.insert(word, smart);
   }
 
   let hintCursor = 0;
@@ -488,6 +582,9 @@
     if (S.done[t]) {
       const bonus = bonuses[S.bonusIdx];
       if (bonus) botSay(`<span class="bonus-tag">доп. правка</span>${bonus.hint}`);
+      bonusHinted = true;
+      goToTarget(false);
+      paintMarks();
       return;
     }
     const used = S.hints[t] || 0;
@@ -536,6 +633,10 @@
         r = t.check(doc, util) || {};
       } catch {}
       if (r.ok) return completeTask(S.task);
+      const bad = paintMarks();
+      if (bad.cyrillic) r.near = 'В коде появились русские буквы, компьютер их тут не поймёт. Нажми <b>↶ Отменить</b>, а потом кружок или кнопку под кодом.';
+      else if (!r.near && bad.target) r.near = t.mark.wrong;
+      else if (!r.near && bad.other) r.near = 'Красную строчку менять не нужно. Нажми <b>↶ Отменить</b>, чтобы вернуть как было.';
       if (r.near && r.near !== lastNear) {
         lastNear = r.near;
         assistantMode = 'near';
@@ -543,7 +644,8 @@
       } else if (!r.near && assistantMode === 'near') {
         lastNear = '';
         assistantMode = 'task';
-        botSay('Продолжай! Если что — жми <b>💡 Подсказка</b>.');
+        if (S.hints[S.task]) showHint(hintCursor);
+        else botSay('Теперь всё в порядке. Что менять дальше, подсвечено жёлтым. Нужна помощь? Жми <b>💡 Подсказка</b>.');
       }
       return;
     }
@@ -615,6 +717,7 @@
     const wait = solo ? '' : '<br><br>⏳ Ждём, пока остальные тоже сделают заказ. Хочешь ещё звёзд — возьми доп. правку!';
     assistantMode = 'done';
     botSay(`🎉 ${t.learn}${wait}`, 'good', actions);
+    paintMarks();
   }
 
   function offerBonus() {
@@ -622,12 +725,16 @@
     const actions = mode === 'solo' && S.task + 1 < tasks.length ? [{ label: 'Следующий заказ →', primary: true, onClick: () => setTask(S.task + 1) }] : [];
     if (!bonus) {
       assistantMode = 'done';
+      paintMarks();
       botSay('Ты сделал(а) все доп. правки! 🔥 Поэкспериментируй: меняй цвета и размеры и смотри, что получится.', 'good', actions);
       updateHintBtn();
       return;
     }
     assistantMode = 'bonus';
+    bonusHinted = false;
     botSay(`<span class="bonus-tag">доп. правка</span>${bonus.say}`, '', actions);
+    goToTarget(false);
+    paintMarks();
     updateHintBtn();
     scheduleCheck();
   }
@@ -643,6 +750,7 @@
     updateHintBtn();
     lastNear = '';
     if (n < 0) {
+      paintMarks();
       editor.lock(true);
       el.lock.classList.remove('off');
       customerLeave();
@@ -658,7 +766,11 @@
       return;
     }
     assistantMode = 'task';
-    botSay('Новый заказ! Попробуй сам(а), а если застрянешь — жми <b>💡 Подсказка</b>.');
+    if (!S.base || S.base.task !== n) S.base = { task: n, html: S.html, css: S.css };
+    save();
+    botSay('Новый заказ! Код, который нужно поменять, подсвечен жёлтым. Не знаешь, что делать? Жми <b>💡 Подсказка</b>, и я скажу, что нажать.');
+    goToTarget(false);
+    paintMarks();
     if (changed && !quiet) summonCustomer();
     armNudge();
     scheduleCheck();
@@ -705,6 +817,7 @@
     customerSay,
     customerLeave,
     botSay,
+    fixTypo,
     toast,
     burst,
     addStars,
@@ -724,21 +837,30 @@
   // ---------- Финал ----------
   const SKILLS = [
     'Цвет кнопки — свойство <code>background</code>',
-    'Текст заголовка — правка в <code>HTML</code>',
-    'Размер шрифта — <code>font-size</code>',
     'Починка бага — <code>display: none</code>',
     'Свой дизайн сайта — цвет фона <code>body</code>',
   ];
   const SKILLS_B = [
     'Новый товар в панели и <b>база данных</b>',
     'Изменение цены на сервере',
-    'Снятие с продажи — поле <code>stock</code>',
     'Запрос и ответ: заказ от клиента',
   ];
+
+  // Опечатка теперь в доп. правке, поэтому к концу этапа убираем её сами:
+  // кто не взял правку, не должен оставаться с «бугрерами» на сайте.
+  function fixTypo() {
+    if (!S.html.includes('бугрер')) return;
+    S.html = S.html.replace(/бугрер/g, 'бургер');
+    editor.setSilently('html', S.html);
+    renderHTML();
+    save();
+  }
 
   let finalShown = false;
   async function showFinal(again) {
     S.final = true;
+    fixTypo();
+    paintMarks();
     save();
     report();
     renderTopbar();
@@ -862,7 +984,7 @@
   }
 
   async function rejoin() {
-    const res = await post('/api/join', { id: S.id, name: S.name, lessonId: S.lessonId });
+    const res = await post('/api/join', { id: S.id, name: S.name, phone: S.phone, lessonId: S.lessonId });
     if (res.status === 409) {
       if (typedName) {
         // Имя только что ввели, а прогресс остался от прошлого урока: начинаем заново.
@@ -889,8 +1011,8 @@
   }
 
   function resetProgress() {
-    const { name } = S;
-    S = Object.assign(blank(), { name });
+    const { name, phone } = S;
+    S = Object.assign(blank(), { name, phone });
     backend.exit();
     finalShown = false;
     el.final.classList.remove('on');
@@ -987,6 +1109,8 @@
     save();
 
     el.attention.classList.toggle('on', st.attention);
+    FG.voice.setClassOff(st.voiceOff);
+    renderSound();
     if (st.cssOff !== cssOff) {
       cssOff = st.cssOff;
       renderCSS();
@@ -1037,6 +1161,19 @@
     }
   }
 
+  // ---------- Звук ----------
+  const soundBtn = $('#soundBtn');
+  function renderSound() {
+    soundBtn.textContent = FG.voice.off ? '🔇' : '🔊';
+    soundBtn.disabled = FG.voice.classOff;
+    soundBtn.title = FG.voice.classOff ? 'Преподаватель выключил звук' : FG.voice.off ? 'Включить голос заказчика' : 'Выключить голос заказчика';
+  }
+  soundBtn.addEventListener('click', () => {
+    FG.voice.setUserOff(!FG.voice.off);
+    renderSound();
+  });
+  renderSound();
+
   // ---------- Вход ----------
   function enterApp() {
     el.join.hidden = true;
@@ -1054,22 +1191,50 @@
     });
   }
 
+  // Только цифры после +996: 700 123 456. Лишнее из вставленного номера убираем.
+  function phoneDigits(v) {
+    let d = v.replace(/\D/g, '');
+    if (d.startsWith('996') && d.length > 9) d = d.slice(3);
+    if (d.startsWith('0')) d = d.slice(1);
+    return d.slice(0, 9);
+  }
+  $('#phoneInput').addEventListener('input', (e) => {
+    const d = phoneDigits(e.target.value);
+    e.target.value = [d.slice(0, 3), d.slice(3, 6), d.slice(6)].filter(Boolean).join(' ');
+    e.target.classList.remove('bad');
+    $('#joinErr').textContent = '';
+  });
+  $('#nameInput').addEventListener('input', (e) => {
+    e.target.classList.remove('bad');
+    $('#joinErr').textContent = '';
+  });
+
   $('#joinForm').addEventListener('submit', (e) => {
     e.preventDefault();
     const name = $('#nameInput').value.trim().slice(0, 30);
     if (name.length < 2) {
       $('#joinErr').textContent = 'Напиши своё имя, без него войти нельзя 🙂';
+      $('#nameInput').classList.add('bad');
       $('#nameInput').focus();
       return;
     }
-    // То же имя в том же браузере — продолжаем с того места (например, случайно закрыли вкладку).
-    if (S.name.toLowerCase() !== name.toLowerCase()) {
+    const digits = phoneDigits($('#phoneInput').value);
+    if (digits.length !== 9) {
+      $('#joinErr').textContent = 'Напиши номер телефона: 9 цифр после +996, например 700 123 456.';
+      $('#phoneInput').classList.add('bad');
+      $('#phoneInput').focus();
+      return;
+    }
+    const phone = `+996 ${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6)}`;
+    // То же имя и номер в том же браузере — продолжаем с того места (например, случайно закрыли вкладку).
+    if (S.name.toLowerCase() !== name.toLowerCase() || (S.phone && S.phone !== phone)) {
       S = blank();
       editor.setSilently('html', S.html);
       editor.setSilently('css', S.css);
       renderCSS();
       renderHTML();
     }
+    S.phone = phone;
     S.name = name;
     typedName = true;
     setSession(true);
@@ -1077,7 +1242,7 @@
     enterApp();
   });
 
-  if (S.name && hasSession()) enterApp();
+  if (S.name && S.phone && hasSession()) enterApp();
   else {
     el.join.hidden = false;
     setTimeout(() => $('#nameInput').focus(), 100);

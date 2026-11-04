@@ -125,6 +125,40 @@ window.FG = window.FG || {};
     }
   }
 
+  // Какие строки в now изменились по сравнению с base (сравнение по строкам).
+  // Удалённую строку показать нельзя, поэтому отмечаем ту, что встала на её место.
+  FG.changedLines = (base, now) => {
+    if (base === now) return [];
+    const a = base.split('\n');
+    const b = now.split('\n');
+    const lcs = Array.from({ length: a.length + 1 }, () => new Uint16Array(b.length + 1));
+    for (let i = a.length - 1; i >= 0; i--) {
+      for (let j = b.length - 1; j >= 0; j--) {
+        lcs[i][j] = a[i] === b[j] ? lcs[i + 1][j + 1] + 1 : Math.max(lcs[i + 1][j], lcs[i][j + 1]);
+      }
+    }
+    const out = new Set();
+    let i = 0;
+    let j = 0;
+    const same = () => i < a.length && j < b.length && a[i] === b[j];
+    while (i < a.length || j < b.length) {
+      if (same()) {
+        i++;
+        j++;
+        continue;
+      }
+      let added = false;
+      while ((i < a.length || j < b.length) && !same()) {
+        if (j < b.length && (i === a.length || lcs[i][j + 1] >= lcs[i + 1][j])) {
+          out.add(j++);
+          added = true;
+        } else i++;
+      }
+      if (!added) out.add(Math.min(j, b.length - 1));
+    }
+    return [...out];
+  };
+
   FG.createEditor = function (root, docs, onChange) {
     const panesEl = root.querySelector('.panes');
     const tabButtons = [...root.querySelectorAll('[data-tab]')];
@@ -141,6 +175,7 @@ window.FG = window.FG || {};
         <div class="gutter" aria-hidden="true"></div>
         <div class="code-area">
           <pre class="hl" aria-hidden="true"></pre>
+          <div class="marks"></div>
           <div class="line-mark"></div>
           <textarea spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" wrap="off" aria-label="Код ${tab.toUpperCase()}"></textarea>
         </div>`;
@@ -152,6 +187,9 @@ window.FG = window.FG || {};
         pre: pane.querySelector('pre'),
         gutter: pane.querySelector('.gutter'),
         mark: pane.querySelector('.line-mark'),
+        marks: pane.querySelector('.marks'),
+        marksList: [],
+        wantLine: null,
         markRange: null,
         lines: 0,
       };
@@ -197,6 +235,7 @@ window.FG = window.FG || {};
       p.pre.scrollTop = p.ta.scrollTop;
       p.pre.scrollLeft = p.ta.scrollLeft;
       p.gutter.scrollTop = p.ta.scrollTop;
+      p.marks.style.transform = `translateY(${-p.ta.scrollTop}px)`;
       if (p.markRange) {
         const lh = lineHeight(p);
         const [a, b] = p.markRange;
@@ -214,10 +253,29 @@ window.FG = window.FG || {};
       }
     }
 
+    function scrollTo(p, line) {
+      // Скрытую вкладку прокрутить нельзя: запоминаем и прокручиваем, когда откроют.
+      if (!p.ta.clientHeight) {
+        p.wantLine = line;
+        return;
+      }
+      p.wantLine = null;
+      p.ta.scrollTop = Math.max(0, line * lineHeight(p) - p.ta.clientHeight / 3);
+    }
+
+    function drawMarks(p) {
+      const lh = lineHeight(p);
+      const top = padTop(p);
+      p.marks.innerHTML = p.marksList.map((m) => `<div class="code-mark ${m.kind}" style="top:${top + m.from * lh}px;height:${(m.to - m.from + 1) * lh}px"></div>`).join('');
+      for (const b of tabButtons) if (b.dataset.tab === p.tab) b.classList.toggle('has-bad', p.marksList.some((m) => m.kind === 'bad'));
+    }
+
     function show(tab) {
       active = tab;
       for (const [t, p] of Object.entries(panes)) p.pane.classList.toggle('active', t === tab);
       for (const b of tabButtons) b.classList.toggle('active', b.dataset.tab === tab);
+      if (panes[tab].wantLine !== null) scrollTo(panes[tab], panes[tab].wantLine);
+      drawMarks(panes[tab]);
       sync(panes[tab]);
       root.dispatchEvent(new CustomEvent('tabchange', { detail: tab }));
     }
@@ -302,6 +360,34 @@ window.FG = window.FG || {};
           p.mark.classList.remove('on');
           p.markRange = null;
         }, 6000);
+      },
+
+      // Подсветка строк: [{ from, to, kind: 'soft' | 'hint' | 'bad' }]. Номера строк с нуля.
+      setMarks(tab, list) {
+        const p = panes[tab];
+        p.marksList = list;
+        drawMarks(p);
+        sync(p);
+      },
+
+      scrollToLine(tab, line) {
+        scrollTo(panes[tab], line);
+        sync(panes[tab]);
+      },
+
+      // Выделить кусок строки: дальше клик по палитре или набор сразу его заменит.
+      selectInLine(tab, line, start, end) {
+        const p = panes[tab];
+        const lines = p.ta.value.split('\n');
+        let pos = 0;
+        for (let i = 0; i < line; i++) pos += lines[i].length + 1;
+        p.ta.focus({ preventScroll: true });
+        p.ta.setSelectionRange(pos + start, pos + end);
+      },
+
+      caretLine(tab) {
+        const p = panes[tab];
+        return p.ta.value.slice(0, p.ta.selectionStart).split('\n').length - 1;
       },
 
       lock(on) {

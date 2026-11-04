@@ -6,7 +6,7 @@
   const PIN_KEY = 'geeks-frontend-pin';
   const LESSON_MIN = 30;
   const ONLINE_MS = 45000;
-  // План по минутам: 0–7 рассказ, 7–25 игра (5 заказов), 25–30 итоги.
+  // План по минутам: 0–7 рассказ, 7–25 игра (3 заказа), 25–30 итоги.
   const PLAN = { gameStart: 7, gameEnd: 25 };
 
   let pin = '';
@@ -119,6 +119,7 @@
   $('#prevBtn').addEventListener('click', () => send('prev'));
   $('#attentionBtn').addEventListener('click', () => send('attention'));
   $('#cssOffBtn').addEventListener('click', () => send('cssOff'));
+  $('#voiceBtn').addEventListener('click', () => send('voice'));
   $('#hintAllBtn').addEventListener('click', () => send('hintAll'));
   $('#finalBtn').addEventListener('click', () => {
     const text = st && st.stage === 2 ? 'Показать финал всем ученикам? Шеф поблагодарит, и у всех откроется сертификат.' : 'Закончить этап 1 у всех учеников? Заказчик скажет «Наконец-то, мне нравится!»';
@@ -150,7 +151,7 @@
       if (on && n.hidden) showNote(n.querySelector('.ntab.active'));
       n.hidden = !on;
     });
-    $('#segGame').textContent = stage2 ? 'Игра · 4 заказа и авария' : 'Игра · 5 заказов';
+    $('#segGame').textContent = stage2 ? 'Игра · 3 заказа и авария' : 'Игра · 3 заказа';
 
     $('#phaseLabel').textContent = st.crash ? '🚨 Авария' : isFinal ? 'Финал' : st.phase === 'lobby' ? 'Лобби' : `Заказ ${st.task + 1} из ${tasks.length}`;
     $('#nowTitle').textContent = !st.crash && isFinal ? (stage2 ? 'Шеф доволен 🎉' : 'Заказчик доволен 🎉') : t ? t.title : stage2 ? 'Вы рассказываете про бэкенд' : 'Ученики входят, вы рассказываете';
@@ -177,6 +178,8 @@
     $('#cssOffBtn').hidden = stage2;
     $('#cssOffBtn').classList.toggle('on', st.cssOff);
     $('#cssOffBtn').textContent = st.cssOff ? '🎨 Включить CSS обратно' : '🦴 Выключить CSS у всех';
+    $('#voiceBtn').classList.toggle('on', st.voiceOff);
+    $('#voiceBtn').textContent = st.voiceOff ? '🔊 Включить звук' : '🔇 Выключить звук';
     $('#hintAllBtn').disabled = st.phase !== 'task' || (st.hintAll || 0) >= 3;
     $('#hintAllBtn').textContent = st.phase === 'task' ? `💡 Подсказка всем · ${Math.min(3, (st.hintAll || 0) + 1)}/3` : '💡 Подсказка всем';
     $('#finalBtn').disabled = isFinal;
@@ -231,9 +234,11 @@
       card.innerHTML = `
         <button class="st-kick" title="Убрать из списка">×</button>
         <div class="st-name"><span class="conn ${s.online ? 'ok' : ''}"></span><span></span></div>
+        <div class="st-phone"></div>
         <div class="st-cells">${cells}</div>
         <div class="st-meta"><span>⭐ ${s.stars || 0}</span><span>💡 ${hints}</span>${s.bonus ? `<span>+${s.bonus} доп.</span>` : ''}${stt === 'help' ? '<span style="color:var(--orange)">подойдите</span>' : ''}</div>`;
       card.querySelector('.st-name span:last-child').textContent = s.name;
+      card.querySelector('.st-phone').textContent = s.phone || '';
       card.querySelector('.st-kick').addEventListener('click', () => {
         if (confirm(`Убрать «${s.name}» из урока и из истории?`)) send('kick', { id: s.id });
       });
@@ -312,7 +317,7 @@
 
   function renderHistory() {
     const q = $('#histSearch').value.trim().toLowerCase();
-    const list = history.filter((h) => !q || h.name.toLowerCase().includes(q));
+    const list = history.filter((h) => !q || h.name.toLowerCase().includes(q) || (h.phone || '').replace(/\s/g, '').includes(q.replace(/\s/g, '')));
     const count = history.filter(passed).length;
     $('#histSummary').textContent = history.length ? `Играли: ${history.length} · прошли оба этапа: ${count}` : 'Пока никого';
     $('#histEmpty').hidden = history.length > 0;
@@ -333,8 +338,9 @@
       }
       const row = document.createElement('div');
       row.className = `hist-row ${passed(h) ? 'ok' : ''}`;
-      row.innerHTML = `<span class="hist-time">${timeOf(h.date)}</span><span class="hist-name"></span><span class="hist-res"></span><button class="hist-del" title="Удалить из истории">×</button>`;
+      row.innerHTML = `<span class="hist-time">${timeOf(h.date)}</span><span class="hist-name"></span><span class="hist-phone"></span><span class="hist-res"></span><button class="hist-del" title="Удалить из истории">×</button>`;
       row.querySelector('.hist-name').textContent = h.name;
+      row.querySelector('.hist-phone').textContent = h.phone || '—';
       row.querySelector('.hist-res').textContent = result(h);
       row.querySelector('.hist-del').addEventListener('click', async () => {
         if (!confirm(`Удалить «${h.name}» из истории?`)) return;
@@ -349,10 +355,10 @@
   // CSV с «;» и BOM — Excel сразу открывает русские буквы и колонки.
   $('#histCsv').addEventListener('click', () => {
     const cell = (v) => `"${String(v).replace(/"/g, '""')}"`;
-    const rows = [['Дата', 'Время', 'Имя', 'Фронтенд', 'Бэкенд', 'Починил сервер', 'Прошёл до конца']];
+    const rows = [['Дата', 'Время', 'Имя', 'Телефон', 'Фронтенд', 'Бэкенд', 'Починил сервер', 'Прошёл до конца']];
     for (const h of history) {
       const d = new Date(h.date);
-      rows.push([`${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`, timeOf(h.date), h.name, `${h.done} из ${h.total}`, h.totalB ? `${h.doneB} из ${h.totalB}` : '', h.crashFixed ? 'да' : 'нет', passed(h) ? 'да' : 'нет']);
+      rows.push([`${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`, timeOf(h.date), h.name, h.phone || '', `${h.done} из ${h.total}`, h.totalB ? `${h.doneB} из ${h.totalB}` : '', h.crashFixed ? 'да' : 'нет', passed(h) ? 'да' : 'нет']);
     }
     const blob = new Blob(['\ufeff' + rows.map((r) => r.map(cell).join(';')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a');

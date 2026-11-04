@@ -59,8 +59,8 @@ mark { background: var(--yellow); color: #1b1c20; padding: 0 8px; border-radius:
 .btn-primary:hover { background: #fff07a; }
 .btn-ghost { background: transparent; border: 1px solid var(--line); color: var(--muted); padding: 7px 12px; font-size: 13px; }
 .btn-ghost:hover { color: var(--text); border-color: #555966; }
-.btn-hint { background: rgba(255, 231, 67, 0.14); color: var(--yellow); border: 1px solid rgba(255, 231, 67, 0.35); padding: 9px 14px; font-size: 14px; align-self: center; }
-.btn-hint:hover { background: rgba(255, 231, 67, 0.24); }
+.btn-hint { position: absolute; top: 6px; right: 12px; background: var(--yellow); color: #1b1c20; padding: 4px 12px; font-size: 13px; }
+.btn-hint:hover { background: #fff07a; }
 
 /* ----- Бренд ----- */
 .brand { display: inline-flex; align-items: center; gap: 8px; }
@@ -83,6 +83,7 @@ mark { background: var(--yellow); color: #1b1c20; padding: 0 8px; border-radius:
   inset: 0;
   display: grid;
   place-items: center;
+  overflow: auto;
   padding: 16px;
   background:
     radial-gradient(800px 500px at 85% 10%, rgba(255, 231, 67, 0.12), transparent 60%),
@@ -103,15 +104,14 @@ mark { background: var(--yellow); color: #1b1c20; padding: 0 8px; border-radius:
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 24px;
-  padding: 40px;
+  padding: 28px 36px;
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
 }
-.join-card h1 { font-size: 34px; line-height: 1.2; margin: 22px 0 12px; font-weight: 800; }
-.join-card p { color: var(--muted); line-height: 1.6; margin: 0 0 28px; font-size: 16px; }
-.join-card label { display: block; font-weight: 700; margin-bottom: 10px; }
-.join-row { display: flex; gap: 10px; }
-.join-row input {
-  flex: 1;
+.join-card h1 { font-size: 28px; line-height: 1.2; margin: 16px 0 8px; font-weight: 800; }
+.join-card p { color: var(--muted); line-height: 1.5; margin: 0 0 16px; font-size: 15px; }
+.join-card label { display: block; font-weight: 700; margin: 12px 0 6px; }
+.join-input {
+  width: 100%;
   min-width: 0;
   background: var(--code-bg);
   border: 2px solid var(--line);
@@ -122,8 +122,13 @@ mark { background: var(--yellow); color: #1b1c20; padding: 0 8px; border-radius:
   padding: 12px 14px;
   outline: none;
 }
-.join-row input:focus { border-color: var(--yellow); }
-.join-err { min-height: 20px; margin-top: 10px; color: var(--orange); font-weight: 600; font-size: 14px; }
+.join-input:focus { border-color: var(--yellow); }
+.join-input.bad { border-color: var(--red); }
+.join-phone { display: flex; gap: 8px; align-items: center; }
+.join-phone span { flex: none; font-size: 17px; font-weight: 700; padding: 12px 14px; background: var(--panel-2); border: 2px solid var(--line); border-radius: 12px; }
+.join-note { margin-top: 6px; font-size: 12.5px; color: var(--muted); }
+.join-err { min-height: 20px; margin: 8px 0; color: var(--orange); font-weight: 600; font-size: 14px; }
+.join-go { width: 100%; font-size: 16px; }
 .join-sprite {
   position: absolute;
   right: 28px;
@@ -195,6 +200,9 @@ mark { background: var(--yellow); color: #1b1c20; padding: 0 8px; border-radius:
 .steps span.alarm { background: var(--red); border-color: var(--red); animation: alarm 0.8s infinite; }
 @keyframes alarm { 50% { box-shadow: 0 0 0 5px rgba(255, 97, 89, 0.35); } }
 
+.sound { flex: none; width: 38px; height: 38px; padding: 0; font-size: 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+.sound:hover:not(:disabled) { border-color: #555966; }
+.sound:disabled { opacity: 0.5; cursor: not-allowed; }
 .stars { font-weight: 800; font-size: 16px; background: var(--panel); border: 1px solid var(--line); padding: 7px 12px; border-radius: 10px; }
 .stars.pop { animation: pop 0.5s; }
 @keyframes pop { 40% { transform: scale(1.25); } }
@@ -437,7 +445,7 @@ mark { background: var(--yellow); color: #1b1c20; padding: 0 8px; border-radius:
   border-right: 1px solid #2a2c33;
 }
 .gutter span { display: block; }
-.code-area { position: relative; flex: 1; min-width: 0; }
+.code-area { position: relative; flex: 1; min-width: 0; overflow: hidden; }
 .code-area pre, .code-area textarea {
   position: absolute;
   inset: 0;
@@ -475,6 +483,15 @@ mark { background: var(--yellow); color: #1b1c20; padding: 0 8px; border-radius:
 .line-mark.on { opacity: 1; }
 .line-mark.flash { animation: flash 0.9s 2; }
 @keyframes flash { 50% { background: rgba(255, 231, 67, 0.3); } }
+
+/* Что менять в коде: мягко — нужный блок, ярко — точная строка, красным — ошибка. */
+.marks { position: absolute; inset: 0 0 auto; z-index: 1; pointer-events: none; }
+.code-mark { position: absolute; left: 0; right: 0; }
+.code-mark.soft { background: rgba(255, 231, 67, 0.07); border-left: 3px solid rgba(255, 231, 67, 0.45); }
+.code-mark.hint { background: rgba(255, 231, 67, 0.2); border-left: 4px solid var(--yellow); }
+.code-mark.bad { background: rgba(255, 97, 89, 0.24); border-left: 4px solid var(--red); }
+.tab.has-bad { position: relative; }
+.tab.has-bad::after { content: ''; position: absolute; top: 6px; right: 6px; width: 8px; height: 8px; border-radius: 50%; background: var(--red); }
 
 /* Подсветка кода */
 .t-com { color: #6b7080; font-style: normal; }
@@ -517,6 +534,7 @@ mark { background: var(--yellow); color: #1b1c20; padding: 0 8px; border-radius:
 
 /* Ассистент */
 .assistant {
+  position: relative;
   flex: none;
   display: flex;
   gap: 12px;
@@ -530,8 +548,8 @@ mark { background: var(--yellow); color: #1b1c20; padding: 0 8px; border-radius:
 @keyframes hover { 50% { transform: translateY(-3px); } }
 @keyframes wiggle { 25% { transform: rotate(-10deg); } 75% { transform: rotate(10deg); } }
 .assistant-body { flex: 1; min-width: 0; }
-.assistant-name { font-family: var(--pixel); font-size: 8px; color: var(--yellow); margin-bottom: 6px; }
-.assistant-text { font-size: 14px; line-height: 1.55; max-height: 92px; overflow: auto; }
+.assistant-name { font-family: var(--pixel); font-size: 8px; color: var(--yellow); min-height: 24px; }
+.assistant-text { font-size: 14px; line-height: 1.55; max-height: 150px; overflow: auto; }
 .assistant-text.warn { color: #ffc58a; }
 .assistant-text.good { color: #9ff0c3; }
 .assistant-text .hint-step { display: inline-block; font-size: 10px; font-weight: 800; color: #1b1c20; background: var(--yellow); padding: 1px 6px; border-radius: 5px; margin-right: 6px; vertical-align: 1px; }
@@ -732,18 +750,23 @@ mark { background: var(--yellow); color: #1b1c20; padding: 0 8px; border-radius:
 /* Пока открыта форма, ей нужно всё место: журнал прячем, полка в одну строку. */
 .form-open .b-log { display: none; }
 .app.stage2 .form-open .assistant { flex-wrap: wrap; row-gap: 8px; padding: 8px 14px; }
-.app.stage2 .form-open .assistant-text { max-height: 44px; }
+.app.stage2 .form-open .assistant-name { min-height: 28px; }
+.app.stage2 .form-open .assistant-text { max-height: 72px; }
 .b-shelf-wrap { flex-basis: 100%; min-width: 0; }
 .b-shelf-title { font-size: 11px; font-weight: 700; color: var(--muted); margin-bottom: 5px; }
 .b-shelf { display: flex; gap: 5px; overflow-x: auto; }
 .b-tile { flex: none; width: 56px; display: grid; justify-items: center; gap: 1px; padding: 5px 2px 4px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; cursor: grab; }
 .b-tile:hover { border-color: var(--yellow); }
 .b-tile:active { cursor: grabbing; }
-.b-tile span { font-size: 28px; line-height: 1; }
+.b-tile span { height: 28px; display: grid; place-items: center; font-size: 28px; line-height: 1; }
 .b-tile small { font-size: 8.5px; color: var(--muted); white-space: nowrap; }
 .b-fill { border: 1px dashed var(--yellow); background: transparent; color: var(--yellow); border-radius: 7px; padding: 1px 7px; font-size: 12px; font-weight: 700; }
 .b-packet { position: fixed; z-index: 40; font-size: 30px; transform: translate(-50%, -50%); transition: left 0.85s ease-in-out, top 0.85s ease-in-out, transform 0.85s; pointer-events: none; }
-.app.stage2 .assistant-text { max-height: 74px; }
+.app.stage2 .assistant-text { max-height: 130px; }
+/* Что нажать на панели: светится жёлтым, ошибка — красным. */
+.b-glow { position: relative; z-index: 1; outline: 2px solid var(--yellow); outline-offset: 2px; animation: glow 1.3s ease-in-out infinite; }
+.b-bad { outline: 2px solid var(--red); outline-offset: 1px; background-color: rgba(255, 97, 89, 0.14); }
+@keyframes glow { 50% { box-shadow: 0 0 0 6px rgba(255, 231, 67, 0.28); } }
 
 /* Сервер упал */
 .down-page { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; padding-top: 7%; background: #fff; color: #1f1a17; text-align: center; }
@@ -770,5 +793,4 @@ mark { background: var(--yellow); color: #1b1c20; padding: 0 8px; border-radius:
   .bubble { width: min(300px, 70vw); }
   .join-card { padding: 28px 20px; }
   .join-card h1 { font-size: 26px; }
-  .join-row { flex-direction: column; }
 }

@@ -21,11 +21,15 @@
       <p>Тебе пришёл первый заказ от настоящей бургерной. Заказчик будет просить правки, а ты — менять код сайта.</p>
       <form id="joinForm" autocomplete="off" novalidate>
         <label for="nameInput">Как тебя зовут?</label>
-        <div class="join-row">
-          <input id="nameInput" maxlength="30" placeholder="Например, Айбек" autocomplete="off">
-          <button class="btn btn-primary" type="submit">Войти в студию →</button>
+        <input class="join-input" id="nameInput" maxlength="30" placeholder="Например, Айбек" autocomplete="off">
+        <label for="phoneInput">Твой номер телефона</label>
+        <div class="join-phone">
+          <span>+996</span>
+          <input class="join-input" id="phoneInput" type="tel" inputmode="numeric" placeholder="700 123 456" autocomplete="off">
         </div>
+        <div class="join-note">Номер увидит только школа GEEKS, чтобы связаться с тобой после урока.</div>
         <div class="join-err" id="joinErr"></div>
+        <button class="btn btn-primary join-go" type="submit">Войти в студию →</button>
       </form>
     </div>
   </div>
@@ -42,6 +46,7 @@
 
       <div class="steps" id="steps" aria-label="Прогресс заказов"></div>
 
+      <button class="sound" id="soundBtn" type="button" title="Выключить голос заказчика">🔊</button>
       <div class="stars" id="stars" title="Звёзды за заказы">⭐ <b id="starCount">0</b></div>
       <div class="who">
         <span class="conn" id="conn" title=""></span>
@@ -229,6 +234,7 @@
   <script src="js/starter.js"></script>
   <script src="js/tasks.js"></script>
   <script src="js/pixel.js"></script>
+  <script src="js/voice.js"></script>
   <script src="js/editor.js"></script>
   <script src="js/backend-tasks.js"></script>
   <script src="js/backend.js"></script>

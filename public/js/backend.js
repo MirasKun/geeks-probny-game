@@ -10,8 +10,16 @@ FG.createBackend = function (G) {
   const bonuses = FG.bBonuses;
 
   const SITE_CSS = `
-    .cards { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)) !important; }
+    .cards { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)) !important; grid-auto-rows: 1fr !important; }
+    .card { display: flex !important; flex-direction: column; align-items: center; min-width: 0; box-sizing: border-box; }
+    .card .picture { flex: none; width: 72px; height: 72px; display: flex; align-items: center; justify-content: center; font-size: 56px; line-height: 1; }
+    .card .picture img { width: 60px !important; height: 60px !important; }
+    .card h3 { flex: none; display: flex; align-items: center; justify-content: center; min-height: 2.6em; margin: 8px 0 4px; line-height: 1.3; overflow-wrap: anywhere; }
+    .card .price { flex: none; margin: 4px 0 12px; }
+    .card .add-btn, .card .__sold-note { margin-top: auto; }
     .add-btn { display: inline-block !important; }
+    .card.__glow { outline: 4px solid #ffe743; outline-offset: 2px; animation: __glow 1.3s ease-in-out infinite; }
+    @keyframes __glow { 50% { box-shadow: 0 0 0 8px rgba(255, 231, 67, .45); } }
     .card.__sold { opacity: .55; filter: grayscale(.7); }
     .__sold-note { font-weight: 700; color: #8a8f9c; margin: 8px 0; }
     #__note { position: fixed; left: 50%; top: 14px; transform: translateX(-50%); z-index: 9; background: #1b1c20; color: #ffe743; padding: 10px 18px; border-radius: 12px; font: 700 14px Arial, sans-serif; box-shadow: 0 10px 30px rgba(0,0,0,.3); white-space: nowrap; }`;
@@ -31,6 +39,8 @@ FG.createBackend = function (G) {
   let noteTimer = null;
   let codeEd = null;
   let codeError = null;
+  let badId = null; // какой товар сейчас неправильный
+  let shownStep = '';
 
   const state = () => G.S.b;
 
@@ -75,6 +85,7 @@ FG.createBackend = function (G) {
     renderList();
     G.renderHTML();
     check();
+    paintPanel();
   }
 
   function snapshot() {
@@ -121,6 +132,47 @@ FG.createBackend = function (G) {
     });
     document.querySelectorAll('[data-bpane]').forEach((p) => (p.hidden = p.dataset.bpane !== name));
     if (name === 'code') codeEd.show('py');
+    paintPanel();
+  }
+
+  // ---------- Что нажать дальше ----------
+  function currentItem() {
+    const b = state();
+    if (b.final || b.task < 0) return null;
+    if (!b.done[b.task]) return tasks[b.task];
+    return mode === 'bonus' ? bonuses[b.bonusIdx] : null;
+  }
+
+  function panelContext() {
+    return { tab, form: form && { id: form.id, pic: form.pic, name: $('#bName').value.trim(), price: $('#bPrice').value.trim() } };
+  }
+
+  function stepNow() {
+    const item = currentItem();
+    return item && item.next ? item.next(state(), panelContext()) : null;
+  }
+
+  // Подсвечивает следующий шаг. Если ученик уже просил подсказку, сам говорит, что делать дальше.
+  function paintPanel() {
+    document.querySelectorAll('.b-glow, .b-bad').forEach((x) => x.classList.remove('b-glow', 'b-bad'));
+    if (!active || !state()) return;
+    if (crash) return;
+    const b = state();
+    const item = currentItem();
+    const step = stepNow();
+    const glow = step ? step.glow : item && item.glow ? item.glow(b) : [];
+    for (const sel of glow) document.querySelector(sel)?.classList.add('b-glow');
+    if (badId !== null) document.querySelector(`[data-pid="${badId}"]`)?.classList.add('b-bad');
+    if (step && mode === 'task' && b.hints[b.task] && step.text !== shownStep) sayStep(step);
+  }
+
+  function sayStep(step) {
+    shownStep = step.text;
+    G.botSay(`<span class="hint-step">делай</span>${step.text}`);
+  }
+
+  function showGlowCard() {
+    G.doc()?.querySelector('.__glow')?.scrollIntoView({ block: 'center' });
   }
   document.querySelectorAll('[data-btab]').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.btab)));
 
@@ -132,6 +184,7 @@ FG.createBackend = function (G) {
     for (const p of b.products) {
       const row = document.createElement('div');
       row.className = `b-row ${p.stock ? '' : 'off'}`;
+      row.dataset.pid = p.id;
       row.innerHTML = `
         <div class="b-pic">${FG.bPicHtml(p.pic)}</div>
         <div class="b-info"><b></b><span>${p.price} сом</span></div>
@@ -156,6 +209,7 @@ FG.createBackend = function (G) {
     }
     $('#bProducts').classList.toggle('down', crash);
     $('#bOrdersPane').classList.toggle('down', crash);
+    paintPanel();
   }
 
   $('#bUndo').addEventListener('click', () => {
@@ -199,6 +253,7 @@ FG.createBackend = function (G) {
     const drop = $('#bDrop');
     drop.classList.add('has');
     drop.innerHTML = `<span class="b-drop-pic">${FG.bPicHtml(id)}</span>`;
+    paintPanel();
   }
 
   function openForm(p) {
@@ -216,7 +271,7 @@ FG.createBackend = function (G) {
     $('#bShelfWrap').hidden = false;
     $('#editor').classList.add('form-open');
     $('#bName').focus();
-    if (mode === 'task' && state().task === 0) G.botSay('Смотри, вот картинки на полке. Возьми нужную мышкой и <b>перетащи на серый квадрат</b> в форме 👆');
+    paintPanel();
   }
 
   function closeForm() {
@@ -224,8 +279,10 @@ FG.createBackend = function (G) {
     $('#bForm').hidden = true;
     $('#bShelfWrap').hidden = true;
     $('#editor').classList.remove('form-open');
+    paintPanel();
   }
 
+  $('#bForm').addEventListener('input', paintPanel);
   $('#bAdd').addEventListener('click', () => openForm(null));
   $('#bCancel').addEventListener('click', closeForm);
 
@@ -247,8 +304,14 @@ FG.createBackend = function (G) {
     const b = state();
     const name = $('#bName').value.trim().slice(0, 30);
     const price = parseInt($('#bPrice').value, 10);
-    if (!name) return ($('#bFormErr').textContent = 'Напиши название товара.');
-    if (!(price > 0)) return ($('#bFormErr').textContent = 'Напиши цену числом, например 450.');
+    if (!name) {
+      $('#bName').classList.add('b-bad');
+      return ($('#bFormErr').textContent = 'Напиши название товара.');
+    }
+    if (!(price > 0)) {
+      $('#bPrice').classList.add('b-bad');
+      return ($('#bFormErr').textContent = 'Напиши цену числом, например 450.');
+    }
     snapshot();
     if (form.id) {
       const p = b.products.find((x) => x.id === form.id);
@@ -270,6 +333,7 @@ FG.createBackend = function (G) {
     if (!form) openForm(null);
     $('#bName').value = b.dataset.fill;
     $('#bPrice').focus();
+    paintPanel();
   });
 
   // ---------- Сайт ----------
@@ -289,9 +353,10 @@ FG.createBackend = function (G) {
       if (foot) foot.before(box);
       else doc.body.appendChild(box);
     }
+    const glowId = orderCardId();
     box.innerHTML = state()
       .products.map(
-        (p) => `<div class="card ${p.stock ? '' : '__sold'}" data-id="${p.id}">
+        (p) => `<div class="card ${p.stock ? '' : '__sold'} ${p.id === glowId ? '__glow' : ''}" data-id="${p.id}">
           <div class="picture">${FG.bPicHtml(p.pic)}</div>
           <h3>${esc(p.name)}</h3>
           <p class="price">${p.price} сом</p>
@@ -299,6 +364,15 @@ FG.createBackend = function (G) {
         </div>`,
       )
       .join('');
+  }
+
+  // Какая карточка светится в заказе «Первый заказ».
+  function orderCardId() {
+    const b = state();
+    if (crash || tasks[b.task]?.id !== 'order' || b.done[b.task] || b.final) return null;
+    if (b.orders.some((o) => o.task === b.task && o.status === 'new')) return null;
+    const list = b.products.filter((p) => p.stock);
+    return (list.find((p) => /пицц|pizza/i.test(p.name)) || list[0] || {}).id ?? null;
   }
 
   function siteNote(text) {
@@ -344,11 +418,13 @@ FG.createBackend = function (G) {
     const f = $('#site').getBoundingClientRect();
     const r = btn.getBoundingClientRect();
     packet({ left: f.left + r.left, top: f.top + r.top, width: r.width, height: r.height }, $('[data-btab="orders"]').getBoundingClientRect(), '📦');
+    G.renderHTML();
     siteNote(`⏳ Отправили заказ на сервер: ${product.name}`);
     renderOrders();
     G.save();
     if (tab !== 'orders') $('[data-btab="orders"]').classList.add('attn');
-    if (b.task === 3 && !b.done[3] && mode !== 'crash') G.botSay('📦 Запрос улетел на сервер! Теперь ты повар: открой вкладку <b>📥 Заказы</b>.');
+    if (tasks[b.task]?.id === 'order' && !b.done[b.task] && mode !== 'crash' && !b.hints[b.task]) G.botSay('📦 Запрос улетел на сервер! Теперь ты повар: открой вкладку <b>📥 Заказы</b>.');
+    paintPanel();
   }
 
   // ---------- Заказы ----------
@@ -360,6 +436,7 @@ FG.createBackend = function (G) {
     $('#bOrderCount').hidden = !fresh;
     if (!b.orders.length) {
       box.innerHTML = '<div class="b-empty"><span>📭</span>Заказов пока нет.<br>Когда клиент нажмёт на сайте «В корзину», заказ придёт сюда.</div>';
+      paintPanel();
       return;
     }
     box.innerHTML = '';
@@ -387,6 +464,7 @@ FG.createBackend = function (G) {
       }
       box.appendChild(row);
     }
+    paintPanel();
   }
 
   // ---------- Код сервера ----------
@@ -394,16 +472,19 @@ FG.createBackend = function (G) {
     if (codeEd) return;
     codeEd = FG.createEditor($('#bCode'), { py: FG.serverCode(state().products) }, onCodeChange);
     codeEd.lock(true);
-    for (const word of ['s', 'products']) {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'chip';
-      b.textContent = word;
-      b.title = 'Вставить в код';
-      b.addEventListener('mousedown', (e) => e.preventDefault());
-      b.addEventListener('click', () => crash && codeEd.insert(word));
-      $('#bCodeChips').appendChild(b);
-    }
+    const letter = document.createElement('button');
+    letter.type = 'button';
+    letter.className = 'chip';
+    letter.textContent = 's';
+    letter.title = 'Вставить букву s в конец жёлтой строчки';
+    letter.addEventListener('mousedown', (e) => e.preventDefault());
+    letter.addEventListener('click', () => {
+      if (!crash) return;
+      const line = FG.serverFixLine(state().crashFixedCode);
+      if (codeEd.caretLine('py') !== line) codeEd.reveal('py', line, line, true);
+      codeEd.insert('s');
+    });
+    $('#bCodeChips').appendChild(letter);
     $('#bCodeUndo').addEventListener('click', () => crash && codeEd.undo());
     $('#bCodeReset').addEventListener('click', () => {
       if (crash && confirm('Вернуть код к моменту аварии?')) codeEd.replaceAll('py', FG.serverBug(state().crashFixedCode));
@@ -419,20 +500,36 @@ FG.createBackend = function (G) {
     if (r.ok) return completeCrash();
     codeError = r;
     renderLog();
+    paintCode();
     if (r.near && r.near !== lastNear) {
       lastNear = r.near;
       G.botSay(r.near, 'warn');
     } else if (!r.near && lastNear) {
       lastNear = '';
-      G.botSay('Продолжай! Смотри на красный текст в журнале: он сразу меняется, когда ты правишь код.');
+      if (b.crashHints) showHint(hintCursor);
+      else G.botSay('Теперь нужно исправить жёлтую строчку. Что написать, скажет <b>💡 Подсказка</b>.');
     }
+  }
+
+  // Жёлтым: где ошибка. Красным: строчка, которую ученик изменил неправильно.
+  function paintCode() {
+    if (!codeEd) return;
+    if (!crash) return codeEd.setMarks('py', []);
+    const b = state();
+    const line = FG.serverFixLine(b.crashFixedCode);
+    const lines = codeEd.value('py').split('\n');
+    const marks = [{ from: line - 1, to: line, kind: 'soft' }];
+    if (b.crashHints) marks.push({ from: line, to: line, kind: 'hint' });
+    if (codeError && (codeError.line !== line || lines[line] !== FG.serverBugLine)) marks.push({ from: codeError.line, to: codeError.line, kind: 'bad' });
+    codeEd.setMarks('py', marks);
+    codeEd.scrollToLine('py', line);
   }
 
   // ---------- Авария ----------
   function setCrashScreen(on) {
     $('#app').classList.toggle('crashing', on);
     $('#downPage').hidden = !on;
-    $('#bCodeNote').textContent = on ? 'Сервер лежит! Найди ошибку и исправь её прямо здесь.' : 'Пока сервер работает, код только для чтения.';
+    $('#bCodeNote').textContent = on ? 'Сервер лежит! Ошибка в жёлтой строчке: исправь её прямо здесь.' : 'Пока сервер работает, код только для чтения.';
     document.querySelector('[data-btab="code"]').classList.toggle('attn', on);
     clearInterval(lostTimer);
     if (on) {
@@ -460,10 +557,12 @@ FG.createBackend = function (G) {
     renderList();
     renderLog();
     renderTopbar();
+    paintCode();
+    paintPanel();
     mode = 'crash';
     lastNear = '';
     clearNudge();
-    G.botSay('🚨 Сервер упал! Читай красный текст в <b>журнале сервера</b>: там написано, что сломалось.');
+    G.botSay('🚨 Сервер упал! Открой вкладку <b>🐍 server.py</b>: строчка с ошибкой там подсвечена жёлтым. Не понятно, что делать? Жми <b>💡 Подсказка</b>.');
     updateHint();
     G.save();
     if (!seen) say();
@@ -478,6 +577,7 @@ FG.createBackend = function (G) {
     crash = false;
     codeError = null;
     setCrashScreen(false);
+    paintCode();
     codeEd.lock(true);
     clearNudge();
   }
@@ -525,7 +625,7 @@ FG.createBackend = function (G) {
       const quiet = crash ? !b.crashHints : b.task >= 0 && !b.done[b.task] && !b.hints[b.task];
       if (!active || !quiet) return;
       $('#assistant').classList.add('nudge');
-      G.botSay('Застрял(а)? Это нормально, все программисты с этого начинали 🙂 Нажми <b>💡 Подсказка</b>, я помогу.');
+      G.botSay('Застрял(а)? Это нормально, все программисты с этого начинали 🙂 Нажми <b>💡</b>, и я скажу, что сделать дальше.');
     }, 60000);
   }
 
@@ -544,14 +644,23 @@ FG.createBackend = function (G) {
       return;
     }
     btn.hidden = false;
-    const used = b.hints[b.task] || 0;
-    btn.textContent = used >= 3 ? '💡 Подсказки' : `💡 Подсказка ${used + 1}/3`;
+    btn.textContent = '💡 Что делать?';
   }
 
   function showHint(level) {
-    const list = crash ? FG.bCrash.hints : tasks[state().task].hints;
-    G.botSay(`<span class="hint-step">${level + 1}/3</span>${list[level]}`);
-    if (!crash) mode = 'task';
+    if (crash) {
+      const line = FG.serverFixLine(state().crashFixedCode);
+      showTab('code');
+      codeEd.reveal('py', line, line, true);
+      G.botSay(`<span class="hint-step">${level + 1}/3</span>${FG.bCrash.hints[level]}`);
+      paintCode();
+      return;
+    }
+    mode = 'task';
+    const step = stepNow();
+    if (step) sayStep(step);
+    showGlowCard();
+    paintPanel();
   }
 
   function hint() {
@@ -560,6 +669,7 @@ FG.createBackend = function (G) {
     if (!crash && b.task >= 0 && b.done[b.task]) {
       const bonus = bonuses[b.bonusIdx];
       if (bonus) G.botSay(`<span class="bonus-tag">доп. правка</span>${bonus.hint}`);
+      paintPanel();
       return;
     }
     const used = crash ? b.crashHints : b.hints[b.task] || 0;
@@ -571,7 +681,7 @@ FG.createBackend = function (G) {
       G.save();
       G.report();
     } else {
-      hintCursor = (hintCursor + 1) % 3;
+      if (crash) hintCursor = (hintCursor + 1) % 3;
       showHint(hintCursor);
     }
     updateHint();
@@ -584,6 +694,7 @@ FG.createBackend = function (G) {
     const t = tasks[b.task];
     if (!b.done[b.task]) {
       const r = t.check(b) || {};
+      badId = r.ok || !r.near ? null : (r.bad ?? null);
       if (r.ok) return completeTask(b.task);
       if (r.near && r.near !== lastNear) {
         lastNear = r.near;
@@ -592,7 +703,8 @@ FG.createBackend = function (G) {
       } else if (!r.near && mode === 'near') {
         lastNear = '';
         mode = 'task';
-        G.botSay('Продолжай! Если что, жми <b>💡 Подсказка</b>.');
+        shownStep = '';
+        if (!b.hints[b.task]) G.botSay('Теперь всё в порядке. Что нажать дальше, подсвечено жёлтым.');
       }
       return;
     }
@@ -624,6 +736,8 @@ FG.createBackend = function (G) {
     G.burst(18);
     G.customerSay(t.doneSay, { mood: 'happy', autoHide: 5000 });
     afterDone();
+    G.renderHTML();
+    paintPanel();
     maybeFinal();
   }
 
@@ -633,10 +747,10 @@ FG.createBackend = function (G) {
     setTimeout(showFinal, 1200);
   }
 
-  // Без преподавателя авария случается сама: после третьего заказа.
+  // Без преподавателя авария случается сама: после второго заказа.
   function soloNext() {
     const b = state();
-    if (b.task === 2 && !b.crashDone) return startCrash();
+    if (b.task === 1 && !b.crashDone) return startCrash();
     if (b.task + 1 < tasks.length) setTask(b.task + 1);
   }
 
@@ -669,6 +783,7 @@ FG.createBackend = function (G) {
     G.botSay(`<span class="bonus-tag">доп. правка</span>${bonus.say}`, '', actions);
     updateHint();
     check();
+    paintPanel();
   }
 
   // ---------- Переход между заказами ----------
@@ -691,6 +806,8 @@ FG.createBackend = function (G) {
     G.report();
     renderTopbar();
     lastNear = '';
+    badId = null;
+    shownStep = '';
     if (n < 0) {
       setLock(true);
       G.customerLeave();
@@ -708,11 +825,14 @@ FG.createBackend = function (G) {
     }
     if (crash) return updateHint();
     mode = 'task';
-    G.botSay('Новый заказ от шефа! Попробуй сам(а), а если застрянешь, жми <b>💡 Подсказка</b>.');
+    G.botSay('Новый заказ от шефа! То, что нужно нажать, светится жёлтым. Не знаешь, что делать? Жми <b>💡 Что делать?</b>');
     updateHint();
     if (isNew && !quiet) summon();
     armNudge();
     check();
+    G.renderHTML();
+    paintPanel();
+    if (tasks[n].id === 'order') showGlowCard();
   }
 
   function showFinal() {
@@ -770,6 +890,7 @@ FG.createBackend = function (G) {
   function enter() {
     if (active) return;
     active = true;
+    G.fixTypo();
     ensure();
     setupCode();
     renderShelf();
