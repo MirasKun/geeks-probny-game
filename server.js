@@ -16,10 +16,10 @@ const SAVE_FILE = path.join(HERE, '.lesson.json');
 const HISTORY_FILE = path.join(HERE, '.history.json');
 const PORT = Number(process.env.PORT) || 3000;
 
-// PIN тот же, что и на Cloudflare: берём из wrangler.jsonc.
+// PIN берём из файла .dev.vars (строка ADMIN_PIN=...). Файл не попадает в git.
 function configPin() {
   try {
-    return readFileSync(path.join(HERE, 'wrangler.jsonc'), 'utf8').match(/"ADMIN_PIN"\s*:\s*"([^"]*)"/)?.[1];
+    return readFileSync(path.join(HERE, '.dev.vars'), 'utf8').match(/^ADMIN_PIN\s*=\s*"?([^"\s]+)/m)?.[1];
   } catch {}
 }
 const PIN = process.env.ADMIN_PIN || configPin() || 'geeks';

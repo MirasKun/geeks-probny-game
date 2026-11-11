@@ -11,7 +11,6 @@
   "durable_objects": {
     "bindings": [{ "name": "ROOM", "class_name": "Classroom" }]
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Classroom"] }],
-  // PIN для пульта преподавателя (можно поменять на свой и снова сделать deploy).
-  "vars": { "ADMIN_PIN": "2342" }
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Classroom"] }]
+  // PIN пульта не в коде, а в секрете Cloudflare: npx wrangler secret put ADMIN_PIN
 }

@@ -12,14 +12,16 @@
 Уже опубликовано:
 
 - **Ученики:** <https://geeks.karabalta-bot.workers.dev>
-- **Пульт преподавателя:** <https://geeks.karabalta-bot.workers.dev/pult#2342>
+- **Пульт преподавателя:** `https://geeks.karabalta-bot.workers.dev/pult#<PIN>`
   (PIN вводить не нужно, ссылка входит сама; сохраните её в закладки)
 
 Короткий адрес даёт маленький Worker `geeks` из папки `short-link/`: он только передаёт запросы основному
 Worker `geeks-frontend`. Старые ссылки тоже работают. Менять его нужно редко, публикуется он отдельно:
 `npx wrangler deploy --config short-link/wrangler.jsonc`.
 
-PIN лежит в `wrangler.jsonc` (`"ADMIN_PIN"`) и один и тот же для Cloudflare и ноутбука.
+Репозиторий открытый, поэтому PIN в коде нет. На Cloudflare он хранится секретом
+(`npx wrangler secret put ADMIN_PIN`), а для ноутбука — в файле `.dev.vars` строкой `ADMIN_PIN=...`
+(файл в git не попадает). Без PIN пульт не открывается.
 Ученикам ссылку на пульт не показывайте.
 
 ### История учеников
@@ -52,7 +54,7 @@ PIN лежит в `wrangler.jsonc` (`"ADMIN_PIN"`) и один и тот же д
 Повторный `npx wrangler deploy` нужен, только если вы меняли файлы игры.
 
 1. Зарегистрируйтесь на <https://dash.cloudflare.com> (бесплатно).
-2. По желанию поменяйте PIN в файле `wrangler.jsonc`: строка `"ADMIN_PIN"`.
+2. PIN пульта задаётся после первого deploy командой `npx wrangler secret put ADMIN_PIN`.
 3. В терминале, в папке проекта:
 
    ```bash
@@ -88,7 +90,7 @@ node server.js
 ```
 
 В консоли напечатается адрес для учеников (например `http://192.168.1.177:3000`) и
-адрес пульта `http://localhost:3000/admin` (PIN тот же, что в `wrangler.jsonc`).
+адрес пульта `http://localhost:3000/admin` (PIN берётся из файла `.dev.vars`, без него — `geeks`).
 
 Если ученики не открывают адрес — разрешите Node входящие подключения
 (macOS спросит при первом запуске: нажмите «Разрешить»).
